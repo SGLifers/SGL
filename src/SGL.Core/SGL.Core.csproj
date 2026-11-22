@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <ItemGroup>
+        <PackageReference Include="LibGit2Sharp" Version="0.32.0" />
+        <EmbeddedResource Include="Data\*.json;Data\*.txt" LogicalName="%(Filename)%(Extension)" />
+    </ItemGroup>
+</Project>

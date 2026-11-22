@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SGL.Core/SGL.Core.csproj" />
+    <Project Path="src/SGL.Desktop/SGL.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SGL.Tests/SGL.Tests.csproj" />
+    <Project Path="tests/UpdateFailureFixture/UpdateFailureFixture.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/SGL.Release/SGL.Release.csproj" />
+  </Folder>
+</Solution>
