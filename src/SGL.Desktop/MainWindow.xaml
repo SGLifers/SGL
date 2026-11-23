@@ -248,7 +248,18 @@
                                 <StackPanel Margin="20" MaxWidth="850" HorizontalAlignment="Stretch">
                                     <TextBlock Text="Publish selected content" FontSize="20" Margin="0,0,0,12" />
                                     <TextBlock Text="Content" /><ComboBox x:Name="PublishKind" SelectedIndex="1" Margin="0,5,0,10" SelectionChanged="PublishKindChanged"><ComboBoxItem Content="Map" Tag="map" /><ComboBoxItem Content="Gamemode" Tag="mode" /><ComboBoxItem Content="Map + gamemode bundle" Tag="bundle" /></ComboBox>
-                                    <TextBlock Text="Local map" /><ComboBox x:Name="PublishMap" DisplayMemberPath="Name" Margin="0,5,0,10" SelectionChanged="PublishSourceChanged" />
+                                    <StackPanel>
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedItem.Tag, ElementName=PublishKind}" Value="mode">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="Local map" /><ComboBox x:Name="PublishMap" DisplayMemberPath="Name" Margin="0,5,0,10" SelectionChanged="PublishSourceChanged" />
+                                    </StackPanel>
                                     <TextBlock Text="Local gamemode" /><ComboBox x:Name="PublishMode" DisplayMemberPath="Name" SelectedValuePath="Id" Margin="0,5,0,10" SelectionChanged="PublishSourceChanged" />
                                     <TextBlock Text="Publication" /><ComboBox x:Name="PublishAction" SelectedIndex="0" Margin="0,5,0,10"><ComboBoxItem Content="New item" Tag="new" /><ComboBoxItem Content="New revision of selected shared item" Tag="update" /><ComboBoxItem Content="My own version of selected shared item" Tag="fork" /></ComboBox>
                                     <TextBlock Text="Title" /><TextBox x:Name="PublishTitle" MaxLength="120" Margin="0,5,0,10" />
