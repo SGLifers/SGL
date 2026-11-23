@@ -250,10 +250,116 @@ Check(new MapLinks(Path.Combine(work, "profile", "map-mode-links.json")).ModesFo
 links.Set("test_arena", id, false);
 Check(links.ModesFor("test_arena").Single() == "another-mode", "Removing map link affected another association");
 string liveCatalogFixture = Path.Combine("artifacts", "references", "maps.json");
+GameStore DeletionFixture(string name)
+{
+    string root = Path.Combine(work, name);
+    Directory.CreateDirectory(root);
+    var original = store.Read();
+    File.Copy(index, Path.Combine(root, "CloudSaveManifest.json"));
+    foreach (var file in original.Manifest["Files"]!.AsArray().OfType<JsonObject>())
+        foreach (var save in file["Saves"]!.AsArray().OfType<JsonObject>())
+        {
+            string rel = (string)save["RelativePath"]!, target = GameStore.Inside(root, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(GameStore.Inside(cloud, rel), target);
+        }
+    return new GameStore(root, () => false);
+}
+var deleteModes = DeletionFixture("delete-modes");
+var beforeModeDelete = deleteModes.Read();
+string deletedModeId = beforeModeDelete.Modes.Single().Id;
+string oldModeArchive = Path.Combine(deleteModes.Root, "CustomModes", deletedModeId, "older-unregistered.bin");
+File.Copy(beforeModeDelete.Modes.Single().ArchivePath, oldModeArchive);
+string flatModeArchive = Path.Combine(deleteModes.Root, "CustomModes", deletedModeId + ".bin");
+File.Copy(oldModeArchive, flatModeArchive);
+string unrelatedNote = Path.Combine(Path.GetDirectoryName(oldModeArchive)!, "keep.txt");
+File.WriteAllText(unrelatedNote, "Unrelated note");
+byte[] originalModeIndex = File.ReadAllBytes(deleteModes.ManifestPath);
+Reject(() => new GameStore(deleteModes.Root, () => true).Delete(beforeModeDelete, "CustomModes", deletedModeId), "Running game allowed mode deletion");
+Reject(() => deleteModes.Delete(beforeModeDelete, "MapCreatorPrefab", deletedModeId), "Unexpected content deletion allowed");
+Reject(() => deleteModes.Delete(beforeModeDelete, "CustomModes", "../outside"), "Deletion allowed identity traversal");
+Reject(() => deleteModes.Delete(beforeModeDelete, "CustomModes", "missing-item"), "Unknown deletion identity accepted");
+int deleteGuardCalls = 0;
+Reject(() => new GameStore(deleteModes.Root, () => ++deleteGuardCalls > 1).Delete(beforeModeDelete, "CustomModes", deletedModeId), "Game opening during deletion did not abort");
+Check(File.ReadAllBytes(deleteModes.ManifestPath).SequenceEqual(originalModeIndex) && File.Exists(oldModeArchive), "Rejected deletion changed files or index");
+using (var deletionHistory = new History(Path.Combine(work, "DeletionHistory")))
+{
+    string start = deletionHistory.Capture(beforeModeDelete, "Before delete")!;
+    var deleted = deleteModes.Delete(beforeModeDelete, "CustomModes", deletedModeId);
+    var after = deleteModes.Read();
+    Check(deleted.CleanupIssues.Count == 0 && after.Modes.Count == 0, "Mode deletion failed");
+    Check(after.Maps.Single().ArchiveHash == beforeModeDelete.Maps.Single().ArchiveHash, "Deleting a mode changed its map");
+    Check(!File.Exists(oldModeArchive) && !File.Exists(flatModeArchive) && !File.Exists(beforeModeDelete.Modes.Single().ArchivePath), "Old mode saves could resurrect deleted item");
+    Check(File.Exists(unrelatedNote), "Deletion removed an unrelated file");
+    Check(File.ReadAllBytes(Path.Combine(deleted.BackupDirectory, "CloudSaveManifest.json")).SequenceEqual(originalModeIndex), "Deletion backup did not preserve index bytes");
+    Check(File.Exists(Path.Combine(deleted.BackupDirectory, "RemovedFiles", "CustomModes", deletedModeId, "older-unregistered.bin")), "Older save missing from deletion backup");
+    Check(File.ReadAllBytes(deleteModes.ManifestPath)[0] == 255 && (string?)after.Manifest["Extra"] == "preserve", "Deletion lost encoding or metadata");
+    string finish = deletionHistory.Capture(after, "Deleted mode")!;
+    Check(deletionHistory.Compare(start, finish).Contains("Removed configuration."), "Deletion missing from history");
+    Check(Json.Canonical(deletionHistory.Mode(start, deletedModeId)) == Json.Canonical(beforeModeDelete.Modes.Single().Payload), "Deleted mode lost historical recovery");
+    deleteModes.RestoreBackup(after, deleted.BackupDirectory);
+    Check(Json.Canonical(deleteModes.Read().Modes.Single().Payload) == Json.Canonical(beforeModeDelete.Modes.Single().Payload), "Deleted mode could not be restored");
+}
+var deleteMaps = DeletionFixture("delete-maps");
+var beforeMapDelete = deleteMaps.Read();
+string deletedMapId = beforeMapDelete.Maps.Single().Id;
+string flatMapArchive = Path.Combine(deleteMaps.Root, "MapCreator", deletedMapId + ".bin");
+File.WriteAllBytes(flatMapArchive, mapBytes);
+string nativeEdits = Path.Combine(deleteMaps.Root, "MapCreator", deletedMapId);
+Directory.CreateDirectory(nativeEdits);
+File.WriteAllBytes(Path.Combine(nativeEdits, "map-lab-edit.bin"), mapBytes);
+var mapDeleted = deleteMaps.Delete(beforeMapDelete, "MapCreator", deletedMapId);
+Check(mapDeleted.CleanupIssues.Count == 0 && deleteMaps.Read().Maps.Count == 0, "Map deletion failed");
+Check(deleteMaps.Read().Modes.Single().ArchiveHash == beforeMapDelete.Modes.Single().ArchiveHash, "Map deletion changed an associated mode");
+Check(!File.Exists(flatMapArchive) && Directory.GetFiles(nativeEdits, "*.bin").Length == 0, "MapLoader could resurrect deleted map or edits");
+Check(File.Exists(Path.Combine(mapDeleted.BackupDirectory, "RemovedFiles", "MapCreator", deletedMapId, "map-lab-edit.bin")), "Map Lab edit not retained in deletion backup");
+Check(Json.Read(File.ReadAllText(Path.Combine(mapDeleted.BackupDirectory, "operation.json")))["state"]!.GetValue<string>() == "complete", "Deletion receipt was not completed");
+deleteMaps.RestoreBackup(deleteMaps.Read(), mapDeleted.BackupDirectory);
+Check(deleteMaps.Read().Maps.Single().ArchiveHash == beforeMapDelete.Maps.Single().ArchiveHash, "Deleted map could not be restored");
+var lockedDelete = DeletionFixture("delete-locked");
+var lockedSnapshot = lockedDelete.Read();
+using (var held = new FileStream(lockedSnapshot.Maps.Single().ArchivePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+{
+    var result = lockedDelete.Delete(lockedSnapshot, "MapCreator", lockedSnapshot.Maps.Single().Id);
+    Check(result.CleanupIssues.Count == 1 && lockedDelete.Read().Maps.Count == 0, "Locked cleanup did not report committed deletion accurately");
+    Check(File.Exists(lockedSnapshot.Maps.Single().ArchivePath), "Locked file was removed unexpectedly");
+    Check(Json.Read(File.ReadAllText(Path.Combine(result.BackupDirectory, "operation.json")))["state"]!.GetValue<string>() == "cleanup-pending", "Partial cleanup has no recovery receipt");
+    Check(File.Exists(GameStore.Inside(Path.Combine(result.BackupDirectory, "PreviousFiles"), Path.GetRelativePath(lockedDelete.Root, lockedSnapshot.Maps.Single().ArchivePath))), "Locked deletion lost recoverable archive");
+}
+var sharedDelete = DeletionFixture("delete-shared");
+var staleDelete = DeletionFixture("delete-stale");
+var staleDeleteSnapshot = staleDelete.Read();
+var staleDeleteManifest = Configuration.Clone(staleDeleteSnapshot.Manifest);
+staleDeleteManifest["ChangedOutsideSGL"] = true;
+File.WriteAllText(staleDelete.ManifestPath, staleDeleteManifest.ToJsonString());
+Reject(() => staleDelete.Delete(staleDeleteSnapshot, "MapCreator", deletedMapId), "Deletion accepted a stale save index");
+Check(staleDelete.Read().Maps.Count == 1, "Stale deletion removed a registration");
+var changedArchiveDelete = DeletionFixture("delete-changed-archive");
+var changedArchiveSnapshot = changedArchiveDelete.Read();
+File.AppendAllText(changedArchiveSnapshot.Maps.Single().ArchivePath, "changed externally");
+Reject(() => changedArchiveDelete.Delete(changedArchiveSnapshot, "MapCreator", deletedMapId), "Deletion accepted an in-place map change");
+var sharedManifest = sharedDelete.Read().Manifest;
+var sharedEntry = Configuration.Clone(sharedManifest["Files"]!.AsArray().OfType<JsonObject>().Single(f => (string?)f["ContentType"] == "MapCreator"));
+sharedEntry["FileId"] = "another-map";
+sharedManifest["Files"]!.AsArray().Add(sharedEntry);
+File.WriteAllText(sharedDelete.ManifestPath, sharedManifest.ToJsonString());
+var sharedBefore = sharedDelete.Read();
+Reject(() => sharedDelete.Delete(sharedBefore, "MapCreator", deletedMapId), "Shared archive was deleted");
+Check(sharedDelete.Read().Maps.Count == 2, "Rejected shared archive deletion changed index");
+var unsafeDelete = DeletionFixture("delete-unsafe");
+var unsafeManifest = unsafeDelete.Read().Manifest;
+var unsafeEntry = unsafeManifest["Files"]!.AsArray().OfType<JsonObject>().Single(f => (string?)f["ContentType"] == "MapCreator");
+string unrelatedRel = "OtherContent/keep.bin";
+Directory.CreateDirectory(Path.Combine(unsafeDelete.Root, "OtherContent"));
+File.WriteAllBytes(GameStore.Inside(unsafeDelete.Root, unrelatedRel), mapBytes);
+unsafeEntry["Saves"]![0]!["RelativePath"] = unrelatedRel;
+File.WriteAllText(unsafeDelete.ManifestPath, unsafeManifest.ToJsonString());
+Reject(() => unsafeDelete.Delete(unsafeDelete.Read(), "MapCreator", deletedMapId), "Deletion crossed content directory boundary");
+Check(File.Exists(GameStore.Inside(unsafeDelete.Root, unrelatedRel)), "Unrelated content was moved");
 if (File.Exists(liveCatalogFixture)) Check(Maps.ParseCatalog(File.ReadAllText(liveCatalogFixture)).Length > 5000, "Actual community catalog rejected");
 string liveMapFixture = Path.Combine("artifacts", "references", "sample-map.bin");
 if (File.Exists(liveMapFixture)) Check(Maps.Inspect(File.ReadAllBytes(liveMapFixture)).Name == "Simulation Omega", "Actual map archive rejected");
-Console.WriteLine($"Passed {assertions} assertions: complete settings audit, mapping preservation, presets, Git history, restoration, backups, map catalog/download/install, pairing, stale-write/game guards and signed updates.");
+Console.WriteLine($"Passed {assertions} assertions: complete settings audit, presets, Git history, backups/restoration, maps, deletion/recovery, stale-write/game guards and signed updates.");
 Console.WriteLine("Fixtures: " + work);
 sealed class FixtureHttp(string envelope, byte[] bytes) : HttpMessageHandler
 {

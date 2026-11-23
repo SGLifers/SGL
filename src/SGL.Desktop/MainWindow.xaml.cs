@@ -23,9 +23,13 @@ public partial class MainWindow : Window
         Tabs.SelectionChanged += MapsTabSelected;
         loading = true;
         var prefs = Preferences();
+        RestorePaneWidths(prefs);
         Folder.Text = Arg("--cloud-save") ?? (string?)prefs["cloudSave"] ?? GameStore.DefaultRoot;
         AutoUpdate.IsChecked = (bool?)prefs["autoUpdate"] ?? true;
         loading = false;
+        SizeChanged += (s, e) => ApplyPaneWidths();
+        ModePanes.SizeChanged += (s, e) => ApplyPaneWidths();
+        MapPanes.SizeChanged += (s, e) => ApplyPaneWidths();
         Folder.TextChanged += (s, e) => { store = null; snapshot = null; Status.Text = "Folder changed. Refresh to scan this CloudSave folder before saving."; };
         VersionLabel.Text = "Community preview · " + typeof(MainWindow).Assembly.GetName().Version?.ToString(3);
         var categories = Configuration.Schema["ui"]!["categories"]!.AsArray().Select(n => n!.GetValue<string>()).ToList();
@@ -70,6 +74,7 @@ public partial class MainWindow : Window
         var p = Preferences();
         p["cloudSave"] = Folder.Text;
         p["autoUpdate"] = AutoUpdate.IsChecked == true;
+        p["layout"] = new JsonObject { ["modes"] = preferredModeWidth, ["categories"] = preferredCategoryWidth, ["mapDetails"] = preferredMapWidth };
         Json.Atomic(Path.Combine(dataRoot, "settings.json"), p.ToJsonString());
     }
     void Run(Action action)
@@ -313,7 +318,7 @@ public partial class MainWindow : Window
             row.Children.Add(slider);
             row.Children.Add(input);
             DockPanel.SetDock(row, Dock.Right);
-            row.Width = 320;
+            row.SetBinding(WidthProperty, new System.Windows.Data.Binding("ActualWidth") { Source = SettingsScroll, Converter = new ControlWidth(200, 320, 240) });
             row.Margin = new Thickness(10, 0, 10, 0);
             head.Children.Insert(head.Children.Count - 1, row);
         }

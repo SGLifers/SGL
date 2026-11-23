@@ -26,6 +26,8 @@ The release targets Windows x64. Windows 10/11 compatibility needs testing on ea
 - Compare arbitrary retained revisions. Load an older version of an installed mode into the editor and save it as a new revision.
 - Community map browsing with name/author search, category filters, previews, one-click download and installation, and local map .bin imports.
 - Per-profile map-to-mode associations: keep maps independent, link several modes to a map, and open linked modes from the Maps tab. Select the map and mode separately in the game lobby.
+- Delete installed maps and gamemodes with confirmation and automatic backups. Older saves and Map Lab edits move to the backup; associated content stays installed. Deleted modes remain available in Git history.
+- Drag dividers to resize the installed-mode sidebar, settings categories and map details. Widths persist across restarts; Settings includes Reset pane widths.
 - Automatic backups, complete-manifest restoration, stale-write checks and game-running guards.
 - Signed update metadata and verified downloads from this repository; the Windows executable itself is unsigned.
 
@@ -35,11 +37,17 @@ Unknown base variants are captured in history and exportable, but read-only. KOT
 
 Open **Maps** to load the Splitgate-Architects community catalog. Pick a map and select **Install selected map** with Splitgate closed. The catalog is cached for offline browsing; downloads need a connection. Installation accepts map archives containing `World.cf1047`; prefab and gamemode archives are rejected. Existing map identities and unregistered files are never overwritten, protecting Map Lab edits. Maps are not executable code and no MapLoader script is run.
 
-Catalog and map data come from the community repository over HTTPS. This catalog does not publish independent checksums or signatures: archive validation and recorded SHA-256 hashes detect local changes, but do not authenticate authorship. Current limits are 8 MB for the catalog, 128 MB compressed and 1 GB expanded for each map. Prefabs, map updates/removal, map binary Git history, and sharing associations are outside this version. Mode Git history remains independent; full backups include all registered map and mode archives.
+Catalog and map data come from the community repository over HTTPS. This catalog does not publish independent checksums or signatures: archive validation and recorded SHA-256 hashes detect local changes, but do not authenticate authorship. Current limits are 8 MB for the catalog, 128 MB compressed and 1 GB expanded for each map. Prefabs, map updates, map binary Git history, and sharing associations are outside this version. Mode Git history remains independent; full backups include all registered map and mode archives.
 
 Map associations are stored per CloudSave profile in `map-mode-links.json`; stable FileIds preserve links across SGL renames. They do not alter map data or gamemode payloads.
 
 References: [MapLoader](https://github.com/Splitgate-Architects/Splitgate-MapLoader), [community map catalog](https://github.com/Splitgate-Architects/Splitgate-CommunityMaps), [community map website](https://splitgate-architects.github.io/Splitgate-CommunityMaps/).
+
+## Delete and restore
+
+Select an installed item and use **Delete selected mode** or **Delete selected map**. Close Splitgate first. SGL confirms the exact item, backs up the complete save index and registered archives, then removes the item from the index and moves its archives into `Backup/SGL-*/RemovedFiles`. Native `.bin` saves in its own identity folder, including unregistered older saves, are included. Unrelated files are retained. This prevents normal MapLoader folder scans from re-registering deleted saves.
+
+Use **Backups → Restore selected backup** for full restoration, or recover a deleted gamemode through **History**. A full backup restore also restores other registrations to that earlier point. Associations are retained as local references and hidden while their map or mode is absent. If an archive is locked or changes during cleanup, SGL reports the retained path and writes a `cleanup-pending` receipt; do not run MapLoader until that file is handled. The committed index remains readable, and a full backup is available.
 
 ## Your data
 
@@ -54,7 +62,7 @@ Install the .NET 10 SDK on Windows, then run:
 ```powershell
 dotnet build src/SGL.Desktop/SGL.Desktop.csproj
 dotnet run --project tests/SGL.Tests
-./scripts/package.ps1 -Version 0.2.0
+./scripts/package.ps1 -Version 0.2.1
 ```
 
 The test executable uses temporary game-save folders and a mock game-running probe. Never point a test host at real player saves. Development UI arguments `--cloud-save <folder> --data <folder> --no-update` isolate desktop checks. Production builds retain the real process guard.

@@ -75,7 +75,7 @@ public sealed partial class GameStore(string root, Func<bool>? running = null)
     void CheckClosed()
     {
         if ((running ?? Modes.GameRunning)())
-            throw new InvalidOperationException("Close Splitgate before installing maps, applying modes or restoring backups.");
+            throw new InvalidOperationException("Close Splitgate before installing, changing or deleting maps and modes, or restoring backups.");
     }
     void CheckCurrent(GameSnapshot expected)
     {

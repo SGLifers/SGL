@@ -26,12 +26,13 @@
         </Grid>
         <TabControl Grid.Row="2" x:Name="Tabs">
             <TabItem Header="Gamemodes">
-                <Grid Margin="12">
+                <Grid x:Name="ModePanes" Margin="12">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="250" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition x:Name="ModeSidebar" Width="320" MinWidth="220" MaxWidth="650" />
+                        <ColumnDefinition Width="10" />
+                        <ColumnDefinition Width="*" MinWidth="560" />
                     </Grid.ColumnDefinitions>
-                    <Grid Margin="0,0,16,0">
+                    <Grid Margin="0,0,8,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -40,16 +41,22 @@
                         </Grid.RowDefinitions>
                         <TextBlock Text="INSTALLED MODES" Foreground="#B9B7D6" Margin="0,0,0,10" />
                         <TextBox x:Name="Search" Grid.Row="1" Margin="0,0,0,10" TextChanged="SearchChanged" ToolTip="Filter installed modes" />
-                        <ListBox x:Name="Installed" Grid.Row="2" DisplayMemberPath="Name" SelectionChanged="ModeSelected" />
+                        <ListBox x:Name="Installed" Grid.Row="2" SelectionChanged="ModeSelected" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate><TextBlock Text="{Binding Name}" TextWrapping="Wrap" ToolTip="{Binding Name}" /></DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                         <WrapPanel Grid.Row="3" Margin="0,12,0,0">
                             <Button Content="New mode" Click="NewMode" />
                             <Button Content="Import JSON" Click="Import" />
                             <Button Content="Community presets" Click="Presets" />
                             <Button Content="Open draft" Click="OpenDraft" />
                             <Button Content="Export installed pack" Click="ExportPack" />
+                            <Button Content="Delete selected mode" Foreground="#FFB9B9" Click="DeleteModeClick" />
                         </WrapPanel>
                     </Grid>
-                    <Grid Grid.Column="1">
+                    <GridSplitter Grid.Column="1" Style="{StaticResource PaneDivider}" AutomationProperties.Name="Resize installed modes sidebar" DragCompleted="PaneResizeCompleted" KeyUp="PaneResizeKeyUp" />
+                    <Grid Grid.Column="2" Margin="8,0,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -82,13 +89,15 @@
                             <CheckBox x:Name="LockSecondary" Content="Lock secondary" />
                             <CheckBox x:Name="LockEquipment" Content="Lock equipment" />
                         </WrapPanel>
-                        <Grid Grid.Row="2">
+                        <Grid x:Name="SettingsPanes" Grid.Row="2">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="135" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition x:Name="CategorySidebar" Width="135" MinWidth="105" MaxWidth="260" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" MinWidth="420" />
                             </Grid.ColumnDefinitions>
                             <ListBox x:Name="Categories" SelectionChanged="CategoryChanged" />
-                            <ScrollViewer x:Name="SettingsScroll" Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="12,0,0,0">
+                            <GridSplitter Grid.Column="1" Style="{StaticResource PaneDivider}" AutomationProperties.Name="Resize settings categories" DragCompleted="PaneResizeCompleted" KeyUp="PaneResizeKeyUp" />
+                            <ScrollViewer x:Name="SettingsScroll" Grid.Column="2" VerticalScrollBarVisibility="Auto" Margin="8,0,0,0">
                                 <StackPanel x:Name="Rows" />
                             </ScrollViewer>
                         </Grid>
@@ -115,12 +124,13 @@
                         <Button Content="Community map website" Click="MapWebsiteClick" />
                     </WrapPanel>
                     <TextBlock x:Name="MapStatus" Grid.Row="1" Text="Browse community maps or import a map .bin. Close Splitgate to install. Backups are made automatically." TextWrapping="Wrap" Margin="0,8,0,12" Foreground="#B9B7D6" />
-                    <Grid Grid.Row="2">
+                    <Grid x:Name="MapPanes" Grid.Row="2">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="350" />
+                            <ColumnDefinition Width="*" MinWidth="300" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition x:Name="MapDetailsPane" Width="380" MinWidth="280" MaxWidth="750" />
                         </Grid.ColumnDefinitions>
-                        <Grid Margin="0,0,18,0">
+                        <Grid Margin="0,0,8,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -142,14 +152,20 @@
                                 </ListBox.ItemTemplate>
                             </ListBox>
                         </Grid>
-                        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                        <GridSplitter Grid.Column="1" Style="{StaticResource PaneDivider}" AutomationProperties.Name="Resize installed maps and details" DragCompleted="PaneResizeCompleted" KeyUp="PaneResizeKeyUp" />
+                        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Margin="8,0,0,0">
                             <StackPanel>
                                 <Image x:Name="MapPreview" Height="180" Stretch="Uniform" Margin="0,0,0,10" />
                                 <TextBlock x:Name="MapDetails" Text="Select a community map." TextWrapping="Wrap" Margin="0,0,0,10" />
                                 <Button x:Name="InstallMapButton" Content="Install selected map" Background="{StaticResource Gold}" Foreground="#171027" Click="InstallMapClick" IsEnabled="False" />
                                 <Button x:Name="CancelMapButton" Content="Cancel download" Click="CancelMapClick" IsEnabled="False" />
                                 <TextBlock Text="INSTALLED MAPS" Foreground="#B9B7D6" Margin="0,20,0,8" />
-                                <ListBox x:Name="InstalledMaps" Height="150" DisplayMemberPath="Name" SelectionChanged="InstalledMapSelected" />
+                                <ListBox x:Name="InstalledMaps" Height="150" SelectionChanged="InstalledMapSelected" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate><TextBlock Text="{Binding Name}" TextWrapping="Wrap" ToolTip="{Binding Name}" /></DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <Button Content="Delete selected map" Foreground="#FFB9B9" Click="DeleteMapClick" Margin="0,8,8,6" />
                                 <TextBlock Text="Associated gamemodes" FontSize="16" Margin="0,18,0,8" />
                                 <TextBlock Text="Choose an installed map and a mode to link them. Select both separately in the game lobby." TextWrapping="Wrap" Foreground="#B9B7D6" Margin="0,0,0,8" />
                                 <ComboBox x:Name="MapModeChoice" DisplayMemberPath="Name" SelectedValuePath="Id" Margin="0,0,0,6" />
@@ -208,10 +224,11 @@
                         <Button Content="Check for updates" Click="CheckUpdates" />
                         <Button Content="Setup &amp; Windows Security guide" Click="OpenGuide" />
                         <Button Content="Open SGL data folder" Click="OpenData" />
+                        <Button Content="Reset pane widths" Click="ResetPaneWidths" />
                     </WrapPanel>
                     <TextBlock x:Name="UpdateStatus" TextWrapping="Wrap" />
                     <TextBlock Margin="0,20,0,0" TextWrapping="Wrap" Text="Unsigned releases may require review in Windows Security → Virus &amp; threat protection → Protection history. Only allow the official release you have verified. SGL never changes security settings." />
-                    <TextBlock Margin="0,20,0,0" Foreground="#B9B7D6" Text="Map loading and additional community tools will be added in future releases." />
+                    <TextBlock Margin="0,20,0,0" Foreground="#B9B7D6" Text="Drag the vertical dividers to resize lists and editor panes. SGL remembers your widths." />
                 </StackPanel>
             </TabItem>
         </TabControl>
