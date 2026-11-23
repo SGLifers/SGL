@@ -32,7 +32,7 @@ public partial class MainWindow : Window
         SizeChanged += (s, e) => ApplyPaneWidths();
         ModePanes.SizeChanged += (s, e) => ApplyPaneWidths();
         MapPanes.SizeChanged += (s, e) => ApplyPaneWidths();
-        Folder.TextChanged += (s, e) => { store = null; snapshot = null; Status.Text = "Folder changed. Refresh to scan this CloudSave folder before saving."; };
+        Folder.TextChanged += (s, e) => { store = null; snapshot = null; UpdateMapTagDetails(); Status.Text = "Folder changed. Refresh to scan this CloudSave folder before saving."; };
         VersionLabel.Text = "Community preview · " + typeof(MainWindow).Assembly.GetName().Version?.ToString(3);
         var categories = Configuration.Schema["ui"]!["categories"]!.AsArray().Select(n => n!.GetValue<string>()).ToList();
         Categories.ItemsSource = categories;

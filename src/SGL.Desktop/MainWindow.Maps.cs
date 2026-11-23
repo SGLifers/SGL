@@ -18,10 +18,11 @@ public partial class MainWindow
     {
         if (InstalledMaps == null || snapshot == null)
             return;
-        string? currentMap = (InstalledMaps.SelectedItem as SavedMap)?.Id;
         string? currentMode = (MapModeChoice.SelectedItem as SavedMode)?.Id;
-        InstalledMaps.ItemsSource = snapshot.Maps.OrderBy(m => m.Name).ToArray();
-        InstalledMaps.SelectedItem = snapshot.Maps.FirstOrDefault(m => m.Id == currentMap);
+        mapTags = TagStore.Read();
+        RefreshMapTagFilter();
+        FilterInstalledMaps();
+        FilterMaps();
         MapModeChoice.ItemsSource = snapshot.Modes.OrderBy(m => m.Name).ToArray();
         MapModeChoice.SelectedItem = snapshot.Modes.FirstOrDefault(m => m.Id == currentMode);
         RefreshMapLinks();
@@ -44,10 +45,12 @@ public partial class MainWindow
             MapStatus.Text = "Loading community map catalog…";
             mapCatalog = await Maps.Catalog(MapCache, refresh);
             catalogLoaded = true;
+            RefreshMapTagFilter();
             string? category = MapCategory.SelectedItem as string;
             MapCategory.ItemsSource = new[] { "All" }.Concat(mapCatalog.Select(m => m.Category).Distinct().Order()).ToArray();
             MapCategory.SelectedItem = category ?? "All";
             FilterMaps();
+            FilterInstalledMaps();
             MapStatus.Text = $"{mapCatalog.Length:N0} community maps. Catalog cached for offline browsing; installation downloads the selected map.";
         }
         catch (Exception error)
@@ -58,9 +61,11 @@ public partial class MainWindow
                 {
                     mapCatalog = await Maps.Catalog(MapCache);
                     catalogLoaded = true;
+                    RefreshMapTagFilter();
                     MapCategory.ItemsSource = new[] { "All" }.Concat(mapCatalog.Select(m => m.Category).Distinct().Order()).ToArray();
                     MapCategory.SelectedItem = "All";
                     FilterMaps();
+                    FilterInstalledMaps();
                     MapStatus.Text = "Using cached catalog. Refresh failed: " + error.Message;
                 }
                 catch { MapStatus.Text = "Cannot load map catalog: " + error.Message; }
@@ -76,28 +81,36 @@ public partial class MainWindow
     {
         if (CommunityMaps == null || MapSearch == null)
             return;
-        string search = MapSearch.Text.Trim(), category = MapCategory.SelectedItem as string ?? "All";
-        CommunityMaps.ItemsSource = mapCatalog.Where(m => (category == "All" || m.Category == category) && (m.Name.Contains(search, StringComparison.OrdinalIgnoreCase) || m.Author.Contains(search, StringComparison.OrdinalIgnoreCase))).ToArray();
+        string? selected = SelectedCommunityMap?.Id;
+        string? installedSelection = SelectedInstalledMap?.Id;
+        string search = MapSearch.Text.Trim(), category = MapCategory?.SelectedItem as string ?? "All";
+        CommunityMaps.ItemsSource = mapCatalog.Where(m => (category == "All" || m.Category == category)
+            && MapTags.Matches(TagsFor(m.Id), "", SelectedTag)
+            && (search.Length == 0 || m.Name.Contains(search, StringComparison.OrdinalIgnoreCase) || m.Author.Contains(search, StringComparison.OrdinalIgnoreCase) || MapTags.Matches(TagsFor(m.Id), search))).Select(MapRow).ToArray();
+        CommunityMaps.SelectedItem = CommunityMaps.Items.OfType<MapListItem>().FirstOrDefault(m => m.Id == selected);
+        if (installedSelection != null) SelectInstalledMap(installedSelection);
+        UpdateMapTagDetails();
     }
     async void CommunityMapSelected(object sender, SelectionChangedEventArgs e)
     {
         mapPreviewRequest?.Cancel();
         MapPreview.Source = null;
         UpdateMapInstallButton();
-        if (CommunityMaps.SelectedItem is not CommunityMap map)
+        if (SelectedCommunityMap is not CommunityMap map)
         {
             MapDetails.Text = "Select a community map.";
+            UpdateMapTagDetails();
             return;
         }
         MapDetails.Text = $"{map.Name}\nBy {map.Author} · {map.Category}";
-        var installed = snapshot?.Maps.FirstOrDefault(m => m.Id == map.Id);
-        InstalledMaps.SelectedItem = installed;
+        SelectInstalledMap(map.Id);
+        UpdateMapTagDetails();
         using var request = new CancellationTokenSource();
         mapPreviewRequest = request;
         try
         {
             byte[]? bytes = await Maps.Preview(map, request.Token);
-            if (bytes == null || request.IsCancellationRequested || !ReferenceEquals(CommunityMaps.SelectedItem, map))
+            if (bytes == null || request.IsCancellationRequested || !ReferenceEquals(SelectedCommunityMap, map))
                 return;
             using var stream = new MemoryStream(bytes, false);
             var bitmap = new BitmapImage();
@@ -116,13 +129,13 @@ public partial class MainWindow
     {
         if (InstallMapButton == null)
             return;
-        bool installed = CommunityMaps.SelectedItem is CommunityMap map && snapshot?.Maps.Any(m => m.Id == map.Id) == true;
+        bool installed = SelectedCommunityMap is CommunityMap map && snapshot?.Maps.Any(m => m.Id == map.Id) == true;
         InstallMapButton.Content = installed ? "Already installed" : "Install selected map";
-        InstallMapButton.IsEnabled = mapDownload == null && !installed && CommunityMaps.SelectedItem is CommunityMap && store != null && snapshot != null;
+        InstallMapButton.IsEnabled = mapDownload == null && !installed && SelectedCommunityMap is CommunityMap && store != null && snapshot != null;
     }
     async void InstallMapClick(object sender, RoutedEventArgs e)
     {
-        if (CommunityMaps.SelectedItem is not CommunityMap map || store == null || snapshot == null || mapDownload != null)
+        if (SelectedCommunityMap is not CommunityMap map || store == null || snapshot == null || mapDownload != null)
             return;
         var target = store;
         var expected = snapshot;
@@ -143,7 +156,7 @@ public partial class MainWindow
             history?.Capture(expected, "Checkpoint before map installation");
             lastBackup = target.InstallMap(expected, map.Id, bytes, map.Name, map.Author);
             Refresh();
-            InstalledMaps.SelectedItem = snapshot?.Maps.FirstOrDefault(m => m.Id == map.Id);
+            SelectInstalledMap(map.Id);
             MapStatus.Text = "Installed " + map.Name + ". Open the game's custom lobby and choose it from your maps. Backup: " + lastBackup;
         }
         catch (OperationCanceledException) { MapStatus.Text = "Map download canceled. Game saves were not changed."; }
@@ -169,22 +182,22 @@ public partial class MainWindow
         history?.Capture(snapshot, "Checkpoint before map import");
         lastBackup = store.InstallMap(snapshot, id, bytes);
         Refresh();
-        InstalledMaps.SelectedItem = snapshot?.Maps.FirstOrDefault(m => m.Id == id);
+        SelectInstalledMap(id);
         MapStatus.Text = "Map imported. Backup: " + lastBackup;
     });
-    void InstalledMapSelected(object sender, SelectionChangedEventArgs e) => Run(RefreshMapLinks);
+    void InstalledMapSelected(object sender, SelectionChangedEventArgs e) => Run(() => { RefreshMapLinks(); UpdateMapTagDetails(); });
     void RefreshMapLinks()
     {
         if (AssociatedModes == null)
             return;
-        var ids = InstalledMaps.SelectedItem is SavedMap map ? Links.ModesFor(map.Id) : [];
+        var ids = SelectedInstalledMap is SavedMap map ? Links.ModesFor(map.Id) : [];
         AssociatedModes.ItemsSource = snapshot?.Modes.Where(m => ids.Contains(m.Id)).OrderBy(m => m.Name).ToArray() ?? [];
     }
     void ChangeMapLink(bool associated) => Run(() =>
     {
         if (store == null || snapshot == null)
             throw new IOException("Refresh this CloudSave folder first.");
-        if (InstalledMaps.SelectedItem is not SavedMap map || MapModeChoice.SelectedItem is not SavedMode mode)
+        if (SelectedInstalledMap is not SavedMap map || MapModeChoice.SelectedItem is not SavedMode mode)
             throw new InvalidDataException("Choose an installed map and a gamemode first.");
         Links.Set(map.Id, mode.Id, associated);
         RefreshMapLinks();

@@ -123,6 +123,9 @@
                         <Button x:Name="RefreshCatalogButton" Content="Refresh community catalog" Click="RefreshCatalogClick" />
                         <Button Content="Import map .bin" Click="ImportMapClick" />
                         <Button Content="Community map website" Click="MapWebsiteClick" />
+                        <TextBlock Text="Tag" VerticalAlignment="Center" Margin="8,0,8,6" />
+                        <ComboBox x:Name="MapTagFilter" Width="180" DisplayMemberPath="Name" ToolTip="Filter community and installed maps by a local tag" Margin="0,0,8,6" SelectionChanged="MapTagFilterChanged" />
+                        <Button x:Name="EditMapTagsButton" Content="Edit local tags…" Click="EditMapTags" IsEnabled="False" ToolTip="Select a community or installed map to edit its tags" />
                     </WrapPanel>
                     <TextBlock x:Name="MapStatus" Grid.Row="1" Text="Browse community maps or import a map .bin. Close Splitgate to install. Backups are made automatically." TextWrapping="Wrap" Margin="0,8,0,12" Foreground="#B9B7D6" />
                     <Grid x:Name="MapPanes" Grid.Row="2">
@@ -140,7 +143,7 @@
                             <TextBlock Text="COMMUNITY MAPS" Foreground="#B9B7D6" Margin="0,0,0,8" />
                             <DockPanel Grid.Row="1" Margin="0,0,0,10">
                                 <ComboBox x:Name="MapCategory" Width="140" Margin="8,0,0,0" DockPanel.Dock="Right" SelectionChanged="MapFilterChanged" />
-                                <TextBox x:Name="MapSearch" ToolTip="Search map name or author" TextChanged="MapSearchChanged" />
+                                <TextBox x:Name="MapSearch" ToolTip="Search map name, author or local tags" TextChanged="MapSearchChanged" />
                             </DockPanel>
                             <ListBox x:Name="CommunityMaps" Grid.Row="2" SelectionChanged="CommunityMapSelected" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
                                 <ListBox.ItemTemplate>
@@ -148,6 +151,7 @@
                                         <StackPanel Margin="5,7">
                                             <TextBlock Text="{Binding Name}" FontSize="15" TextWrapping="Wrap" />
                                             <TextBlock Foreground="#B9B7D6"><Run Text="{Binding Author}" /><Run Text=" · " /><Run Text="{Binding Category}" /></TextBlock>
+                                            <TextBlock Text="{Binding TagSummary}" Foreground="{StaticResource Gold}" FontSize="12" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
@@ -158,12 +162,15 @@
                             <StackPanel>
                                 <Image x:Name="MapPreview" Height="180" Stretch="Uniform" Margin="0,0,0,10" />
                                 <TextBlock x:Name="MapDetails" Text="Select a community map." TextWrapping="Wrap" Margin="0,0,0,10" />
+                                <TextBlock x:Name="MapTagTitle" Text="Local tags" FontSize="16" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                <TextBlock x:Name="MapTagDetails" Text="Select a map to edit its tags." Foreground="{StaticResource Gold}" TextWrapping="Wrap" Margin="0,0,0,10" />
                                 <Button x:Name="InstallMapButton" Content="Install selected map" Background="{StaticResource Gold}" Foreground="#171027" Click="InstallMapClick" IsEnabled="False" />
                                 <Button x:Name="CancelMapButton" Content="Cancel download" Click="CancelMapClick" IsEnabled="False" />
                                 <TextBlock Text="INSTALLED MAPS" Foreground="#B9B7D6" Margin="0,20,0,8" />
+                                <TextBox x:Name="InstalledMapSearch" ToolTip="Search installed maps by name, author or local tags" TextChanged="InstalledMapSearchChanged" Margin="0,0,0,8" />
                                 <ListBox x:Name="InstalledMaps" Height="150" SelectionChanged="InstalledMapSelected" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                     <ListBox.ItemTemplate>
-                                        <DataTemplate><TextBlock Text="{Binding Name}" TextWrapping="Wrap" ToolTip="{Binding Name}" /></DataTemplate>
+                                        <DataTemplate><StackPanel><TextBlock Text="{Binding Name}" TextWrapping="Wrap" ToolTip="{Binding Name}" /><TextBlock Text="{Binding TagSummary}" Foreground="{StaticResource Gold}" FontSize="12" TextWrapping="Wrap" /></StackPanel></DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
                                 <Button Content="Delete selected map" Foreground="#FFB9B9" Click="DeleteMapClick" Margin="0,8,8,6" />

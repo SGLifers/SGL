@@ -25,7 +25,7 @@ public partial class MainWindow
     });
     void DeleteMapClick(object sender, RoutedEventArgs e) => Run(() =>
     {
-        if (store == null || snapshot == null || InstalledMaps.SelectedItem is not SavedMap map)
+        if (store == null || snapshot == null || SelectedInstalledMap is not SavedMap map)
             throw new InvalidOperationException("Select an installed map first.");
         if (Modes.GameRunning())
             throw new InvalidOperationException("Close Splitgate before deleting a map.");
