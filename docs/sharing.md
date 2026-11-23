@@ -15,7 +15,7 @@ Offline files preserve creator credits, but their claimed account identities are
 
 ## Map images
 
-The **0.3.4 preview or later** shows image thumbnails for shared maps and map/gamemode bundles, plus a larger preview for the selected revision. Bundle previews use their pinned map revision. Existing publications with an embedded `Screenshot.jpg` gain previews without republishing when their screenshot was accepted by the service (JPEG, up to 2 MB).
+SGL **0.3.4 or later** shows image thumbnails for shared maps and map/gamemode bundles, plus a larger preview for the selected revision. Bundle previews use their pinned map revision. Existing publications with an embedded `Screenshot.jpg` gain previews without republishing when their screenshot was accepted by the service (JPEG, up to 2 MB).
 
 Previews load separately from the map download and are cached in memory. Missing, expired or invalid images show a placeholder and do not prevent installation. Private-map previews require access; making a bundle's map private removes its anonymous preview. Changing revisions updates the displayed image.
 
@@ -23,7 +23,7 @@ The Discord sign-in button is hidden while a valid SGL session is active. Sign o
 
 ## Map tags and discovery
 
-Shareable tags and the tag/publisher filters require the **0.3.3 or later**. Version 0.3.2 keeps tags local.
+Shareable tags and the tag/publisher filters require **SGL 0.3.3 or later**. Version 0.3.2 keeps tags local.
 
 Select a map in **Maps → Edit local tags…** and enter comma-separated labels such as **TDM, 1v1, Friday event**. A map supports up to 20 tags of 40 characters each. The Publish tab previews the tags that will be included.
 
