@@ -21,19 +21,59 @@ def challenge(verifier):
 
 
 class Discord:
+    user_agent = "DiscordBot (https://github.com/SGLifers/SGL, 0.3.1)"
+
+    def request_json(self, stage, request):
+        try:
+            with urllib.request.urlopen(request, timeout=12) as response:
+                value = json.load(response)
+                if not isinstance(value, dict):
+                    raise ValueError("Expected object")
+                return value
+        except urllib.error.HTTPError as error:
+            oauth_error = "upstream_error"
+            hint = "none"
+            try:
+                body = json.loads(error.read(65_536))
+                if isinstance(body.get("error"), str) and body["error"] in {"invalid_client", "invalid_grant", "invalid_request", "invalid_scope", "unauthorized_client", "unsupported_grant_type", "access_denied"}:
+                    oauth_error = body["error"]
+                description = body.get("error_description", "")
+                if isinstance(description, str):
+                    if "code_verifier" in description or "code_challenge" in description: hint = "pkce"
+                    elif "redirect_uri" in description: hint = "redirect_uri"
+            except (ValueError, UnicodeError, AttributeError):
+                pass
+            finally:
+                error.close()
+            # Only fixed phase labels, HTTP status and allowlisted OAuth identifiers.
+            # Never log response descriptions, codes, tokens, credentials or headers.
+            print("SGL Discord request failed", stage, error.code, oauth_error, hint)
+            if oauth_error == "invalid_client":
+                message = "Discord rejected SGL's application credentials. The SGL administrator needs to update its Discord sign-in configuration."
+            elif oauth_error == "invalid_grant":
+                message = "Discord rejected this sign-in code. Cancel the waiting sign-in and start a new one from SGL."
+            else:
+                message = f"Discord {stage} request failed (HTTP {error.code}). Start sign-in again."
+            raise Problem(502, message) from None
+        except (urllib.error.URLError, TimeoutError):
+            print("SGL Discord request failed", stage, "network_error")
+            raise Problem(502, "Discord could not be reached during sign-in. Start sign-in again.") from None
+        except (ValueError, UnicodeError):
+            print("SGL Discord request failed", stage, "invalid_response")
+            raise Problem(502, "Discord returned an invalid sign-in response. Start sign-in again.") from None
+
     def identify(self, code, verifier, redirect, configuration):
         form = urllib.parse.urlencode({"client_id": configuration["clientId"], "client_secret": configuration["clientSecret"], "grant_type": "authorization_code", "code": code, "redirect_uri": redirect, "code_verifier": verifier}).encode()
         try:
-            request = urllib.request.Request("https://discord.com/api/oauth2/token", data=form, headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "SGL/0.3"})
-            with urllib.request.urlopen(request, timeout=12) as response:
-                token = json.load(response)
-            request = urllib.request.Request("https://discord.com/api/v10/users/@me", headers={"Authorization": "Bearer " + token["access_token"], "User-Agent": "SGL/0.3"})
-            with urllib.request.urlopen(request, timeout=12) as response:
-                profile = json.load(response)
+            request = urllib.request.Request("https://discord.com/api/oauth2/token", data=form, headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": self.user_agent, "Accept": "application/json"})
+            token = self.request_json("token", request)
+            request = urllib.request.Request("https://discord.com/api/v10/users/@me", headers={"Authorization": "Bearer " + token["access_token"], "User-Agent": self.user_agent, "Accept": "application/json"})
+            profile = self.request_json("profile", request)
             require(isinstance(profile.get("id"), str) and re.fullmatch(r"\d{5,24}", profile["id"]), "Discord returned an invalid identity.", 502)
             return profile
-        except (urllib.error.URLError, KeyError, ValueError) as error:
-            raise Problem(502, "Discord sign-in could not be completed. Start sign-in again.") from error
+        except (KeyError, ValueError, TypeError):
+            print("SGL Discord request failed", "response_shape")
+            raise Problem(502, "Discord returned an incomplete sign-in response. Start sign-in again.") from None
 
 
 class Service:
@@ -115,8 +155,15 @@ class Service:
         require(isinstance(request_id, str) and re.fullmatch(r"[A-Za-z0-9_-]{43}", request_id), "Invalid sign-in state.")
         login = self.repo.get("LOGIN#" + request_id)
         require(login and login["expiresAt"] > self.now() and login["status"] == "pending", "Sign-in expired or was already completed. Start again.")
-        require(not query.get("error") and query.get("code"), "Discord sign-in was declined.")
-        profile = self.discord.identify(query["code"], login["discordVerifier"], self.base + "/auth/callback", self.configuration())
+        login = self.repo.claim_login("LOGIN#" + request_id, self.now())
+        try:
+            require(not query.get("error") and query.get("code"), "Discord sign-in was declined.")
+            profile = self.discord.identify(query["code"], login["discordVerifier"], self.base + "/auth/callback", self.configuration())
+        except Problem as error:
+            login.update(status="failed", failure=str(error))
+            login.pop("discordVerifier", None)
+            self.repo.put(login)
+            raise
         user_id = uuid.uuid5(uuid.NAMESPACE_URL, "https://discord.com/users/" + profile["id"]).hex
         avatar = profile.get("avatar")
         avatar_url = "https://cdn.discordapp.com/avatars/" + profile["id"] + "/" + avatar + ".png?size=128" if isinstance(avatar, str) and re.fullmatch(r"[A-Za-z0-9_]+", avatar) else None
@@ -134,6 +181,7 @@ class Service:
         login = self.repo.get("LOGIN#" + request_id)
         require(login and login["expiresAt"] > self.now(), "Sign-in expired. Start again.", 401)
         require(secrets.compare_digest(login["challenge"], challenge(verifier)), "Invalid sign-in verifier.", 401)
+        require(login["status"] != "failed", login.get("failure", "Discord sign-in failed. Start again."), 502)
         if login["status"] != "ready":
             return {"status": "pending"}
         login = self.repo.consume_login("LOGIN#" + request_id)

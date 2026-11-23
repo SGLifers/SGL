@@ -77,6 +77,9 @@ class AwsRepositoryTests(unittest.TestCase):
         self.assertEqual(digest(data), revision["content"]["sha256"])
 
     def test_login_consumption_and_limits_are_conditional(self):
+        self.repo.put({"pk": "LOGIN#claim-test", "sk": "META", "status": "pending", "expiresAt": 1_900_000_000})
+        self.assertEqual("processing", self.repo.claim_login("LOGIN#claim-test", 1_800_000_000)["status"])
+        with self.assertRaises(Problem): self.repo.claim_login("LOGIN#claim-test", 1_800_000_000)
         self.repo.put({"pk": "LOGIN#test", "sk": "META", "status": "ready"})
         self.assertEqual("ready", self.repo.consume_login("LOGIN#test")["status"])
         with self.assertRaises(Problem): self.repo.consume_login("LOGIN#test")

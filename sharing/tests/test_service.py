@@ -29,6 +29,12 @@ class MemoryRepository:
         if not login or login["status"] != "ready": raise Problem(409, "Already used")
         self.delete(pk)
         return login
+    def claim_login(self, pk, now):
+        login = self.get(pk)
+        if not login or login["status"] != "pending" or login["expiresAt"] <= now: raise Problem(409, "Already processing")
+        login["status"] = "processing"
+        self.put(login)
+        return login
     def publish(self, item, revision, expected, request):
         old = self.get(item["pk"])
         if (expected and (not old or old["latestRevisionId"] != expected)) or (not expected and old) or self.get(request["pk"]): raise Problem(409, "Conflict")

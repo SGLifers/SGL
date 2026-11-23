@@ -48,6 +48,13 @@ class AwsRepository:
         except self.ddb.exceptions.ConditionalCheckFailedException:
             raise Problem(409, "This sign-in request was already used.")
 
+    def claim_login(self, pk, now):
+        try:
+            result = self.table.update_item(Key={"pk": pk, "sk": "META"}, UpdateExpression="SET #s = :processing", ConditionExpression="#s = :pending AND expiresAt > :now", ExpressionAttributeNames={"#s": "status"}, ExpressionAttributeValues={":pending": "pending", ":processing": "processing", ":now": now}, ReturnValues="ALL_NEW")
+            return native(result["Attributes"])
+        except self.ddb.exceptions.ConditionalCheckFailedException:
+            raise Problem(409, "This sign-in is already processing or completed. Return to SGL or start a new sign-in.")
+
     def publish(self, item, revision, expected, request):
         serialize = lambda value: {key: self.serializer.serialize(v) for key, v in value.items()}
         put = {"TableName": self.table.name, "Item": serialize(item), "ConditionExpression": "attribute_not_exists(pk)"}
