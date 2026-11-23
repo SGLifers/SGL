@@ -236,8 +236,8 @@ public partial class MainWindow
         var item = await client.Item(parsed.ItemId, cancel);
         appliedLibraryTag = ""; appliedLibraryCreator = ""; libraryCursor = null;
         LibraryTag.Clear(); LibraryCreator.Clear(); LibrarySearch.Clear();
-        if (sharedItems.All(i => i.Id != item.Id))
-            sharedItems.Insert(0, item);
+        sharedItems.RemoveAll(i => i.Id == item.Id);
+        sharedItems.Insert(0, item);
         FilterSharedItems();
         LibraryItems.SelectedItem = sharedItems.First(i => i.Id == item.Id);
         await LoadSharedItem(item, parsed.RevisionId, cancel);
@@ -369,6 +369,11 @@ public partial class MainWindow
             }
             if (!request.IsCancellationRequested && ReferenceEquals(LibraryItems.SelectedItem, item) && ReferenceEquals(LibraryRevisions.SelectedItem, revision))
                 LibraryMapPreview.PreviewDescriptor = preview;
+        }
+        catch (LibraryException error) when (error.Status == HttpStatusCode.Unauthorized)
+        {
+            if (!string.IsNullOrWhiteSpace(LibraryRoot)) Session(LibraryRoot).Clear();
+            RefreshSharingAccount();
         }
         catch (Exception error) when (error is not OutOfMemoryException) { /* Previews never block installation. */ }
         finally { if (ReferenceEquals(libraryPreviewRequest, request)) libraryPreviewRequest = null; }
