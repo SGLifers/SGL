@@ -319,6 +319,7 @@
                     <WrapPanel Margin="0,12,0,12">
                         <Button Content="Check for updates" Click="CheckUpdates" />
                         <Button Content="Setup &amp; Windows Security guide" Click="OpenGuide" />
+                        <Button Content="Report a bug" Click="ReportBug" />
                         <Button Content="Open SGL data folder" Click="OpenData" />
                         <Button Content="Reset pane widths" Click="ResetPaneWidths" />
                     </WrapPanel>

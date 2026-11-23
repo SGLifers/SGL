@@ -89,6 +89,7 @@ public partial class MainWindow : Window
     }
     void Report(Exception error)
     {
+        lastReportError = error;
         Status.Text = error.Message;
         try
         {

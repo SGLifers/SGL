@@ -7,6 +7,26 @@ using SGL.Core;
 int assertions = 0;
 void Check(bool test, string message) { assertions++; if (!test) throw new Exception(message); }
 void Reject(Action action, string message) { bool failed = false; try { action(); } catch { failed = true; } Check(failed, message); }
+string privateMessage = @"C:\Users\PrivatePlayer\CloudSave\SecretMap.bin token=private-token discord-id=123456";
+string reportDiagnostics = BugReports.Diagnostics(new Version(0, 3, 1), 4, 2, true, 1,
+    new IOException(privateMessage, new InvalidOperationException("client_secret=never-share-this")));
+Check(reportDiagnostics.Contains("SGL: 0.3.1") && reportDiagnostics.Contains("Installed maps: 2"), "Bug diagnostics lost app version or counts");
+Check(reportDiagnostics.Contains("System.IO.IOException") && reportDiagnostics.Contains("System.InvalidOperationException"), "Bug diagnostics lost error types");
+foreach (string secret in new[] { "PrivatePlayer", "SecretMap", "private-token", "123456", "client_secret", "never-share-this", @"C:\Users" })
+    Check(!reportDiagnostics.Contains(secret), "Bug diagnostics exposed private exception content: " + secret);
+Check(BugReports.Diagnostics(new Version(0, 3, 1), null, null, false, 0, null).Contains("Installed modes: Not scanned"), "Unscanned diagnostics implied an empty library");
+string bugTitle = "Map & mode #1 / 🐛", bugActual = "The selector stayed visible.";
+string bugReport = BugReports.Compose(bugTitle, "1. Open Publish", "Map hidden", bugActual, reportDiagnostics);
+Check(bugReport.Contains(bugTitle) && bugReport.Contains("1. Open Publish") && bugReport.Contains(bugActual), "Bug report lost user details");
+Check(bugReport.Contains("## Diagnostics"), "Selected bug diagnostics missing");
+Check(!BugReports.Compose(bugTitle, "", "", bugActual, null).Contains("## Diagnostics"), "Opted-out diagnostics still included");
+Check(BugReports.Compose("", " ", "", "", null).Contains("Not provided."), "Incomplete offline report failed");
+var issueDraft = BugReports.IssueDraft(bugTitle, bugReport, out bool pasteReport);
+Check(!pasteReport && issueDraft.Host == "github.com" && issueDraft.AbsolutePath == "/SGLifers/SGL/issues/new", "Bug draft used an unexpected destination");
+var draftQuery = issueDraft.Query.TrimStart('?').Split('&').Select(p => p.Split('=', 2)).ToDictionary(p => p[0], p => Uri.UnescapeDataString(p[1]));
+Check(draftQuery["title"] == bugTitle && draftQuery["body"] == bugReport, "Bug draft URL corrupted Unicode or query characters");
+var longDraft = BugReports.IssueDraft(bugTitle, new string('x', 10_000), out pasteReport);
+Check(pasteReport && longDraft.AbsoluteUri.Length < 7000 && Uri.UnescapeDataString(longDraft.Query).Contains("Paste the report copied from SGL"), "Long bug report did not fall back to clipboard instructions");
 string work = Path.Combine(Path.GetTempPath(), "sgl-test-" + Guid.NewGuid().ToString("N")[..8]);
 Directory.CreateDirectory(work);
 Updates.EnsureWindowsExecutable(Environment.ProcessPath!);

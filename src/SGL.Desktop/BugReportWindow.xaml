@@ -1,0 +1,36 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SGL.Desktop.BugReportWindow" Style="{StaticResource {x:Type Window}}"
+        Title="SGL · Report a bug" Width="960" Height="800" MinWidth="720" MinHeight="600" WindowStartupLocation="CenterOwner">
+    <Grid Margin="24">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,16">
+            <TextBlock Text="Report a bug" FontSize="26" FontWeight="SemiBold" />
+            <TextBlock Text="Describe the problem and review the preview. GitHub issues are public; submitting requires a GitHub account." TextWrapping="Wrap" Foreground="#B9B7D6" Margin="0,8,0,0" />
+        </StackPanel>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="20" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="0,0,8,0">
+                    <TextBlock Text="Summary" /><TextBox x:Name="ReportTitle" MaxLength="140" Margin="0,5,0,14" TextChanged="ReportChanged" />
+                    <TextBlock Text="Steps to reproduce" /><TextBox x:Name="ReportSteps" MaxLength="4000" Height="120" Margin="0,5,0,14" TextChanged="ReportChanged" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Text="Expected behavior" /><TextBox x:Name="ReportExpected" MaxLength="2000" Height="85" Margin="0,5,0,14" TextChanged="ReportChanged" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Text="What happened? Include any error message." TextWrapping="Wrap" /><TextBox x:Name="ReportActual" MaxLength="4000" Height="120" Margin="0,5,0,14" TextChanged="ReportChanged" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" />
+                    <CheckBox x:Name="IncludeDiagnostics" Content="Include app and system diagnostics" IsChecked="True" Checked="DiagnosticsChanged" Unchecked="DiagnosticsChanged" />
+                    <TextBlock Text="Diagnostics include versions, library counts and error types. Raw logs, save contents, local paths and account details are excluded." TextWrapping="Wrap" FontSize="12" Foreground="#B9B7D6" Margin="0,6,0,12" />
+                </StackPanel>
+            </ScrollViewer>
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <TextBlock Text="Report preview" Margin="0,0,0,5" />
+                <TextBox x:Name="ReportPreview" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" FontSize="12" />
+            </Grid>
+        </Grid>
+        <TextBlock x:Name="ReportStatus" Grid.Row="2" TextWrapping="Wrap" Foreground="#B9B7D6" Margin="0,12,0,12" Text="Copy or save a report offline, or open a GitHub draft and submit it there. You can attach screenshots on GitHub." />
+        <WrapPanel Grid.Row="3">
+            <Button x:Name="OpenIssueButton" Content="Copy &amp; open GitHub draft" Click="OpenIssue" Background="{StaticResource Gold}" Foreground="#171027" />
+            <Button Content="Copy report" Click="CopyReport" />
+            <Button Content="Save report…" Click="SaveReport" />
+            <Button Content="Close" IsCancel="True" />
+        </WrapPanel>
+    </Grid>
+</Window>
