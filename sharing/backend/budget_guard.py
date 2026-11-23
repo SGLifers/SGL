@@ -3,8 +3,11 @@ import json
 import os
 import re
 import time
+import uuid
+from contextlib import contextmanager
 
 STATE_KEY = {"pk": "CONTROL#BUDGET", "sk": "META"}
+LOCK_KEY = {"pk": "CONTROL#BUDGET_LOCK", "sk": "META"}
 STOP_SID = "SglBudgetStopTransfers"
 
 
@@ -26,8 +29,24 @@ class AwsControls:
         self.table = boto3.resource("dynamodb", config=config).Table(os.environ["TABLE_NAME"])
         self.s3 = boto3.client("s3", config=config)
         self.functions = boto3.client("lambda", config=config)
+        self.gateway = boto3.client("apigatewayv2", config=config)
         self.bucket = os.environ["BUCKET_NAME"]
         self.function = os.environ["API_FUNCTION_NAME"]
+        self.api_id = os.environ["API_ID"]
+        self.route_id = os.environ["API_ROUTE_ID"]
+        self.reservations = os.environ.get("USE_RESERVED_CONCURRENCY", "false") == "true"
+
+    @contextmanager
+    def lock(self):
+        token = uuid.uuid4().hex
+        try:
+            self.table.put_item(Item={**LOCK_KEY, "owner": token, "leaseUntil": int(time.time()) + 150}, ConditionExpression="attribute_not_exists(pk) OR leaseUntil < :now", ExpressionAttributeValues={":now": int(time.time())})
+        except self.table.meta.client.exceptions.ConditionalCheckFailedException:
+            raise RuntimeError("Another budget operation is in progress. Retry shortly.") from None
+        try:
+            yield
+        finally:
+            self.table.delete_item(Key=LOCK_KEY, ConditionExpression="#owner = :owner", ExpressionAttributeNames={"#owner": "owner"}, ExpressionAttributeValues={":owner": token})
 
     def read(self):
         value = self.table.get_item(Key=STATE_KEY, ConsistentRead=True).get("Item", {})
@@ -62,9 +81,16 @@ class AwsControls:
         return self.functions.get_function_concurrency(FunctionName=self.function).get("ReservedConcurrentExecutions")
 
     def api(self, stopped):
-        desired = 0 if stopped else 2
-        if self.concurrency() != desired:
-            self.functions.put_function_concurrency(FunctionName=self.function, ReservedConcurrentExecutions=desired)
+        if self.reservations:
+            desired = 0 if stopped else 2
+            if self.concurrency() != desired:
+                self.functions.put_function_concurrency(FunctionName=self.function, ReservedConcurrentExecutions=desired)
+        desired_auth = "AWS_IAM" if stopped else "NONE"
+        if self.gateway.get_route(ApiId=self.api_id, RouteId=self.route_id).get("AuthorizationType", "NONE") != desired_auth:
+            self.gateway.update_route(ApiId=self.api_id, RouteId=self.route_id, AuthorizationType=desired_auth)
+
+    def api_stopped(self):
+        return self.gateway.get_route(ApiId=self.api_id, RouteId=self.route_id).get("AuthorizationType", "NONE") == "AWS_IAM"
 
 
 class Guard:
@@ -75,7 +101,8 @@ class Guard:
         state = self.controls.read()
         transfers = self.controls.transfers_stopped()
         concurrency = self.controls.concurrency()
-        return {"paused": state["paused"] or transfers or concurrency == 0, "persistedPause": state["paused"], "transfersStopped": transfers, "apiConcurrency": concurrency, "reason": state["reason"], "changedAt": state["changedAt"]}
+        blocked = self.controls.api_stopped()
+        return {"paused": state["paused"] or transfers or concurrency == 0 or blocked, "persistedPause": state["paused"], "transfersStopped": transfers, "apiBlocked": blocked, "apiConcurrency": concurrency, "reason": state["reason"], "changedAt": state["changedAt"]}
 
     def enforce(self):
         failures = []
@@ -124,6 +151,12 @@ class Guard:
         return self.status()
 
     def handle(self, event):
+        if isinstance(event, dict) and event.get("action") == "status" and "Records" not in event:
+            return self.status()
+        with self.controls.lock():
+            return self.dispatch(event)
+
+    def dispatch(self, event):
         if not isinstance(event, dict):
             raise ValueError("Invalid budget control event.")
         if "Records" in event:
@@ -149,5 +182,5 @@ class Guard:
 
 
 def handler(event, context):
-    # One reserved execution serializes pause/resume/reconcile; no endpoint or anonymous invocation.
+    # A conditional DynamoDB lease serializes mutations even without reserved capacity.
     return Guard(AwsControls(), os.environ["BUDGET_TOPIC_ARN"]).handle(event)

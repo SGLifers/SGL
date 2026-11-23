@@ -60,10 +60,13 @@ try {
     if ($global:SglDeploymentMockCalls.Count -ne 1) { throw 'Account mismatch did not stop immediately.' }
     $global:SglDeploymentMockCalls.Clear(); $global:SglMock.Account='111111111111'
     $global:SglMock.Concurrency=10
-    try { & $deploy @options; throw 'Low concurrency quota was accepted.' }
+    try { & $deploy @options -UseReservedConcurrency; throw 'Low concurrency quota was accepted for reserved mode.' }
     catch { if ($_.Exception.Message -notlike '*needs at least 103*') { throw } }
     Assert-NoDeployment
     if ($global:SglDeploymentMockCalls | Where-Object { $_[1] -eq 'describe-stacks' }) { throw 'Low quota was not rejected during preflight.' }
+    $global:SglDeploymentMockCalls.Clear()
+    & $deploy @options -PlanOnly
+    Assert-NoDeployment
     $global:SglDeploymentMockCalls.Clear(); $global:SglMock.Concurrency=1001
     & $deploy @options
     foreach ($call in $global:SglDeploymentMockCalls) {
@@ -71,11 +74,11 @@ try {
         if ($profile -lt 0 -or $call[$profile+1] -ne 'MOCK_ONLY' -or $region -lt 0 -or $call[$region+1] -ne 'us-west-2') { throw 'Deployment lost its profile/region.' }
     }
     if (!($global:SglDeploymentMockCalls | Where-Object { $_[0] -eq 's3api' -and $_[1] -eq 'create-bucket' -and $_ -contains 'LocationConstraint=us-west-2' })) { throw 'Bucket location is invalid.' }
-    if (!($global:SglDeploymentMockCalls | Where-Object { $_[1] -eq 'deploy' -and $_ -contains 'MonthlyBudgetUsd=10' -and $_ -contains 'SharingPaused=false' -and $_ -contains 'BudgetEmail=ci@example.invalid' })) { throw 'Deployment lost its budget configuration.' }
+    if (!($global:SglDeploymentMockCalls | Where-Object { $_[1] -eq 'deploy' -and $_ -contains 'MonthlyBudgetUsd=10' -and $_ -contains 'SharingPaused=false' -and $_ -contains 'UseReservedConcurrency=false' -and $_ -contains 'BudgetEmail=ci@example.invalid' })) { throw 'Deployment lost its budget configuration.' }
     $configuration=Get-Content -LiteralPath (Join-Path $fixture 'src/SGL.Core/Data/library-service.json') -Raw | ConvertFrom-Json
     if ($configuration.apiUrl -ne 'https://mock.execute-api.us-west-2.amazonaws.com') { throw 'API output missing.' }
     $global:SglDeploymentMockCalls.Clear(); $global:SglMock.Paused=$true
-    & $deploy @options -MonthlyBudgetUsd 25
+    & $deploy @options -MonthlyBudgetUsd 25 -UseReservedConcurrency
     if (!($global:SglDeploymentMockCalls | Where-Object { $_[1] -eq 'deploy' -and $_ -contains 'SharingPaused=true' -and $_ -contains 'MonthlyBudgetUsd=25' })) { throw 'Paused deployment reopened sharing.' }
     if (!$global:SglMock.Paused) { throw 'Deployment resumed sharing.' }
     foreach ($failure in 'FailControl','InvalidStatus') {

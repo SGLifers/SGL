@@ -25,7 +25,7 @@ class AwsRepository:
         self.table = boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])
         self.ddb = boto3.client("dynamodb")
         self.serializer = TypeSerializer()
-        self.s3 = boto3.client("s3", config=Config(signature_version="s3v4"))
+        self.s3 = boto3.client("s3", config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}))
         self.bucket = os.environ["BUCKET_NAME"]
         self.secrets = boto3.client("secretsmanager")
 

@@ -31,7 +31,7 @@ The release targets Windows x64. Windows 10/11 compatibility needs testing on ea
 - Automatic backups, complete-manifest restoration, stale-write checks and game-running guards.
 - Signed update metadata and verified downloads from this repository; the Windows executable itself is unsigned.
 - Portable `.sglpack` files for maps, gamemodes and paired bundles. Recipients install through SGL with a complete backup.
-- Shared library with Discord sign-in, public/unlisted/private publications, attributed immutable revisions, forks and pinned map-to-mode bundles. The initial 0.3 preview awaits AWS deployment and Discord setup; offline packages work now. See [sharing](docs/sharing.md) and [deployment](sharing/README.md).
+- Shared library with Discord sign-in, public/unlisted/private publications, attributed immutable revisions, forks and pinned map-to-mode bundles. The sharing endpoint is included in the app; publishing requires Discord sign-in. Offline packages work without an account. See [sharing](docs/sharing.md) and [deployment](sharing/README.md).
 
 Unknown base variants are captured in history and exportable, but read-only. KOTH has no kill-scoring component in its saved template: its five kill/death/assist scoring controls are shown as unavailable. Existing custom rules may be ignored or clamped by the game. The installed-mode history uses stable FileIds: deleting/recreating a mode outside SGL produces a distinct identity. Startup scans cannot recover edits the game never saved or intermediate changes between scans. The history selector currently displays the latest 1,000 commits; older commits remain in the local repository.
 
@@ -64,7 +64,7 @@ Install the .NET 10 SDK on Windows, then run:
 ```powershell
 dotnet build src/SGL.Desktop/SGL.Desktop.csproj
 dotnet run --project tests/SGL.Tests
-./scripts/package.ps1 -Version 0.3.0
+./scripts/package.ps1 -Version 0.3.1
 ```
 
 The test executable uses temporary game-save folders and a mock game-running probe. Never point a test host at real player saves. Development UI arguments `--cloud-save <folder> --data <folder> --no-update` isolate desktop checks. Production builds retain the real process guard.

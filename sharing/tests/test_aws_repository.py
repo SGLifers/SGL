@@ -67,6 +67,8 @@ class AwsRepositoryTests(unittest.TestCase):
         self.assertEqual(base64.b64encode(bytes.fromhex(digest(data))).decode(), upload["headers"]["x-amz-checksum-sha256"])
         self.assertIn("X-Amz-SignedHeaders=", upload["url"])
         self.assertIn("content-length", upload["url"])
+        from urllib.parse import urlsplit
+        self.assertTrue(urlsplit(upload["url"]).hostname.endswith(".s3.us-west-2.amazonaws.com"))
         record = self.repo.get("UPLOAD#" + upload["uploadId"])
         self.repo.s3.put_object(Bucket=self.repo.bucket, Key=record["key"], Body=data)
         import uuid

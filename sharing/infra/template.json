@@ -30,6 +30,15 @@
         "false"
       ],
       "Description": "Deployment preserves the persisted pause. Resume only through the budget-control operator script."
+    },
+    "UseReservedConcurrency": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": [
+        "true",
+        "false"
+      ],
+      "Description": "Optional API=2 and guard=1 reservations. Enable after quota approval."
     }
   },
   "Conditions": {
@@ -37,6 +46,14 @@
       "Fn::Equals": [
         {
           "Ref": "SharingPaused"
+        },
+        "true"
+      ]
+    },
+    "UseReservations": {
+      "Fn::Equals": [
+        {
+          "Ref": "UseReservedConcurrency"
         },
         "true"
       ]
@@ -391,9 +408,17 @@
         "Timeout": 60,
         "ReservedConcurrentExecutions": {
           "Fn::If": [
-            "SharingIsPaused",
-            0,
-            2
+            "UseReservations",
+            {
+              "Fn::If": [
+                "SharingIsPaused",
+                0,
+                2
+              ]
+            },
+            {
+              "Ref": "AWS::NoValue"
+            }
           ]
         },
         "Code": {
@@ -455,6 +480,13 @@
                 "Ref": "ApiIntegration"
               }
             ]
+          ]
+        },
+        "AuthorizationType": {
+          "Fn::If": [
+            "SharingIsPaused",
+            "AWS_IAM",
+            "NONE"
           ]
         }
       }
@@ -756,7 +788,8 @@
                   "Effect": "Allow",
                   "Action": [
                     "dynamodb:GetItem",
-                    "dynamodb:PutItem"
+                    "dynamodb:PutItem",
+                    "dynamodb:DeleteItem"
                   ],
                   "Resource": {
                     "Fn::GetAtt": [
@@ -767,7 +800,8 @@
                   "Condition": {
                     "ForAllValues:StringEquals": {
                       "dynamodb:LeadingKeys": [
-                        "CONTROL#BUDGET"
+                        "CONTROL#BUDGET",
+                        "CONTROL#BUDGET_LOCK"
                       ]
                     }
                   }
@@ -809,6 +843,16 @@
                       "Arn"
                     ]
                   }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "apigateway:GET",
+                    "apigateway:PATCH"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/${HttpApi}/routes/${DefaultRoute}"
+                  }
                 }
               ]
             }
@@ -835,7 +879,15 @@
         },
         "MemorySize": 128,
         "Timeout": 60,
-        "ReservedConcurrentExecutions": 1,
+        "ReservedConcurrentExecutions": {
+          "Fn::If": [
+            "UseReservations",
+            1,
+            {
+              "Ref": "AWS::NoValue"
+            }
+          ]
+        },
         "Code": {
           "S3Bucket": {
             "Ref": "CodeBucket"
@@ -857,6 +909,15 @@
             },
             "BUDGET_TOPIC_ARN": {
               "Ref": "BudgetCutoffTopic"
+            },
+            "API_ID": {
+              "Ref": "HttpApi"
+            },
+            "API_ROUTE_ID": {
+              "Ref": "DefaultRoute"
+            },
+            "USE_RESERVED_CONCURRENCY": {
+              "Ref": "UseReservedConcurrency"
             }
           }
         }

@@ -7,6 +7,7 @@ import sys
 import unittest
 from unittest.mock import patch
 import zipfile
+from contextlib import contextmanager
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from budget_guard import AwsControls, Guard, STOP_SID, baseline_policy, stop_statement
@@ -23,7 +24,17 @@ class Controls:
         self.state = {"paused": False, "reason": "", "changedAt": 0, "notifications": []}
         self.stopped = False
         self.concurrent = 2
+        self.reservations = True
+        self.blocked = False
+        self.locked = False
         self.fail = set()
+
+    @contextmanager
+    def lock(self):
+        if self.locked: raise RuntimeError("Another operation holds the lock")
+        self.locked = True
+        try: yield
+        finally: self.locked = False
 
     def read(self):
         if "read" in self.fail: raise OSError("read failed")
@@ -38,12 +49,14 @@ class Controls:
 
     def transfers_stopped(self): return self.stopped
     def concurrency(self): return self.concurrent
+    def api_stopped(self): return self.blocked
     def transfers(self, stopped):
         if "transfers" in self.fail: raise OSError("S3 unavailable")
         self.stopped = stopped
     def api(self, stopped):
         if "api" in self.fail or not stopped and "resume-api" in self.fail: raise OSError("Lambda unavailable")
-        self.concurrent = 0 if stopped else 2
+        self.blocked = stopped
+        self.concurrent = (0 if stopped else 2) if self.reservations else None
 
 
 class BudgetGuardTests(unittest.TestCase):
@@ -124,6 +137,24 @@ class BudgetGuardTests(unittest.TestCase):
         self.assertTrue(status["paused"])
         self.assertFalse(status["persistedPause"])
 
+    def test_unreserved_pause_and_resume_use_gateway_without_reservations(self):
+        self.controls.reservations = False; self.controls.concurrent = None
+        status = self.guard.handle(notification())
+        self.assertTrue(status["apiBlocked"])
+        self.assertTrue(status["transfersStopped"])
+        self.assertIsNone(status["apiConcurrency"])
+        status = self.guard.handle({"action": "resume", "acknowledgeBudgetOverrun": True})
+        self.assertFalse(status["paused"])
+        self.assertFalse(self.controls.blocked)
+        self.assertIsNone(status["apiConcurrency"])
+
+    def test_overlapping_mutations_are_rejected_while_status_remains_readable(self):
+        with self.controls.lock():
+            with self.assertRaises(RuntimeError): self.guard.handle({"action": "pause"})
+            self.assertFalse(self.guard.handle({"action": "status"})["paused"])
+        self.guard.handle({"action": "pause"})
+        self.assertTrue(self.controls.blocked)
+
     def test_template_wires_thresholds_cutoff_retry_and_failure_alarms(self):
         template = json.loads((Path(__file__).resolve().parents[1] / "infra/template.json").read_text())
         resources = template["Resources"]
@@ -135,9 +166,11 @@ class BudgetGuardTests(unittest.TestCase):
         self.assertEqual([0, 0, 1], [sum(s["SubscriptionType"] == "SNS" for s in n["Subscribers"]) for n in notices])
         self.assertTrue(all(any(s["SubscriptionType"] == "EMAIL" for s in n["Subscribers"]) for n in notices))
         self.assertNotIn("Default", template["Parameters"]["BudgetEmail"])
-        self.assertEqual(1, resources["BudgetGuardFunction"]["Properties"]["ReservedConcurrentExecutions"])
+        self.assertEqual("false", template["Parameters"]["UseReservedConcurrency"]["Default"])
+        self.assertEqual({"Fn::If": ["UseReservations", 1, {"Ref": "AWS::NoValue"}]}, resources["BudgetGuardFunction"]["Properties"]["ReservedConcurrentExecutions"])
         self.assertEqual("rate(5 minutes)", resources["BudgetReconcileRule"]["Properties"]["ScheduleExpression"])
-        self.assertEqual({"Fn::If": ["SharingIsPaused", 0, 2]}, resources["ApiFunction"]["Properties"]["ReservedConcurrentExecutions"])
+        self.assertEqual({"Fn::If": ["UseReservations", {"Fn::If": ["SharingIsPaused", 0, 2]}, {"Ref": "AWS::NoValue"}]}, resources["ApiFunction"]["Properties"]["ReservedConcurrentExecutions"])
+        self.assertEqual({"Fn::If": ["SharingIsPaused", "AWS_IAM", "NONE"]}, resources["DefaultRoute"]["Properties"]["AuthorizationType"])
         self.assertEqual(6, sum(r["Type"] == "AWS::CloudWatch::Alarm" for r in resources.values()))
         self.assertEqual({"Fn::GetAtt": ["BudgetFailureQueue", "Arn"]}, resources["BudgetGuardAsyncFailures"]["Properties"]["DestinationConfig"]["OnFailure"]["Destination"])
         policy = resources["BudgetGuardRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
@@ -159,7 +192,7 @@ except ImportError:
 @unittest.skipUnless(AWS_AVAILABLE, "Install sharing/requirements-dev.txt for AWS emulation tests")
 class AwsBudgetControlsTests(unittest.TestCase):
     def test_real_sdk_latch_policy_preservation_and_concurrency(self):
-        with patch.dict(os.environ, {"AWS_ACCESS_KEY_ID": "testing", "AWS_SECRET_ACCESS_KEY": "testing", "AWS_DEFAULT_REGION": "us-west-2", "TABLE_NAME": "budget-test", "BUCKET_NAME": "sgl-budget-test", "API_FUNCTION_NAME": "sgl-api-test"}), mock_aws():
+        with patch.dict(os.environ, {"AWS_ACCESS_KEY_ID": "testing", "AWS_SECRET_ACCESS_KEY": "testing", "AWS_DEFAULT_REGION": "us-west-2", "TABLE_NAME": "budget-test", "BUCKET_NAME": "sgl-budget-test", "API_FUNCTION_NAME": "sgl-api-test", "USE_RESERVED_CONCURRENCY": "true"}), mock_aws():
             ddb = boto3.client("dynamodb")
             ddb.create_table(TableName="budget-test", BillingMode="PAY_PER_REQUEST", AttributeDefinitions=[{"AttributeName": k, "AttributeType": "S"} for k in ("pk", "sk")], KeySchema=[{"AttributeName": "pk", "KeyType": "HASH"}, {"AttributeName": "sk", "KeyType": "RANGE"}])
             s3 = boto3.client("s3")
@@ -173,13 +206,32 @@ class AwsBudgetControlsTests(unittest.TestCase):
             functions = boto3.client("lambda")
             functions.create_function(FunctionName="sgl-api-test", Runtime="python3.13", Role=role, Handler="app.handler", Code={"ZipFile": archive.getvalue()})
             functions.put_function_concurrency(FunctionName="sgl-api-test", ReservedConcurrentExecutions=2)
+            gateway = boto3.client("apigatewayv2")
+            api_id = gateway.create_api(Name="guard-test", ProtocolType="HTTP")["ApiId"]
+            route_id = gateway.create_route(ApiId=api_id, RouteKey="$default", AuthorizationType="NONE")["RouteId"]
+            os.environ["API_ID"] = api_id; os.environ["API_ROUTE_ID"] = route_id
             controls = AwsControls(); guard = Guard(controls, TOPIC)
             self.assertTrue(guard.handle(notification())["paused"])
             current = json.loads(s3.get_bucket_policy(Bucket="sgl-budget-test")["Policy"])
             self.assertIn(stop_statement("sgl-budget-test"), current["Statement"])
             self.assertEqual(0, functions.get_function_concurrency(FunctionName="sgl-api-test")["ReservedConcurrentExecutions"])
+            self.assertEqual("AWS_IAM", gateway.get_route(ApiId=api_id, RouteId=route_id)["AuthorizationType"])
             # State is persisted outside the process, with DynamoDB's actual serializer.
             self.assertTrue(Guard(AwsControls(), TOPIC).status()["persistedPause"])
             guard.handle({"action": "resume", "acknowledgeBudgetOverrun": True})
             self.assertEqual(policy, json.loads(s3.get_bucket_policy(Bucket="sgl-budget-test")["Policy"]))
             self.assertEqual(2, functions.get_function_concurrency(FunctionName="sgl-api-test")["ReservedConcurrentExecutions"])
+            self.assertEqual("NONE", gateway.get_route(ApiId=api_id, RouteId=route_id)["AuthorizationType"])
+            with controls.lock():
+                with self.assertRaises(RuntimeError):
+                    with AwsControls().lock(): pass
+            controls.table.put_item(Item={"pk": "CONTROL#BUDGET_LOCK", "sk": "META", "owner": "expired-holder", "leaseUntil": 1})
+            with AwsControls().lock(): pass
+            self.assertNotIn("Item", controls.table.get_item(Key={"pk": "CONTROL#BUDGET_LOCK", "sk": "META"}))
+            functions.delete_function_concurrency(FunctionName="sgl-api-test")
+            os.environ["USE_RESERVED_CONCURRENCY"] = "false"
+            unreserved = Guard(AwsControls(), TOPIC)
+            self.assertTrue(unreserved.handle(notification("unreserved-event"))["apiBlocked"])
+            self.assertNotIn("ReservedConcurrentExecutions", functions.get_function_concurrency(FunctionName="sgl-api-test"))
+            self.assertFalse(unreserved.handle({"action": "resume", "acknowledgeBudgetOverrun": True})["paused"])
+            self.assertNotIn("ReservedConcurrentExecutions", functions.get_function_concurrency(FunctionName="sgl-api-test"))
