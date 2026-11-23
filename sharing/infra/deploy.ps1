@@ -20,6 +20,8 @@ $identity = (Invoke-SglAws @('sts','get-caller-identity','--output','json') | Ou
 if ($identity.Account -ne $AccountId) { throw "The selected profile is signed into a different account. No resources were changed." }
 $template = Join-Path $PSScriptRoot 'template.json'
 Invoke-SglAws @('cloudformation','validate-template','--template-body',"file://$template") | Out-Null
+$limits = Invoke-SglAws @('lambda','get-account-settings','--query','AccountLimit','--output','json') | Out-String | ConvertFrom-Json
+if ($limits.ConcurrentExecutions -lt 103) { throw "Lambda's regional concurrency quota is $($limits.ConcurrentExecutions). SGL needs at least 103 (3 reserved plus AWS's required 100 unreserved). Request a quota increase before deploying. No resource configuration was changed." }
 $existing = Get-SglStackOutputs -Profile $Profile -Region $Region -StackName $StackName -AllowMissing
 $sharingPaused = 'false'
 if ($existing.BudgetControlFunctionName) {

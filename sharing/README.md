@@ -4,9 +4,11 @@ The service stores Discord profiles, item metadata and immutable revisions in Dy
 
 ## Deployment
 
-The requested target region is **us-west-2**. The deployment script requires an explicit account ID and named AWS CLI profile, verifies the caller account before writing, and never reads credentials into app configuration. The target profile is still pending; no infrastructure has been deployed by this implementation.
+The requested target region is **us-west-2**. The deployment script requires an explicit account ID and named AWS CLI profile, verifies the caller account before writing, and never reads credentials into app configuration. The initial deployment is awaiting approval of the target account's Lambda concurrency quota increase; no sharing infrastructure has been created yet.
 
 Requirements: AWS CLI v2, PowerShell, deployment permissions for CloudFormation/IAM/Lambda/API Gateway/S3/DynamoDB/Secrets Manager/CloudWatch/SNS/SQS/EventBridge/Budgets, and a monitored email address. Budget controls and an email recipient are required for deployment.
+
+Lambda's regional concurrency quota must be at least **103**: SGL reserves 2 for the API and 1 for the budget guard, and AWS requires 100 units to remain unreserved. New accounts can start at 10. The deployment preflight rejects that quota before creating resources; request an increase in AWS Service Quotas and wait for approval first. An account quota increase does not raise SGL's per-function limits or provision paid capacity. Other reserved functions can require additional account capacity.
 
 ```powershell
 ./sharing/infra/deploy.ps1 -Profile YOUR_PROFILE -AccountId YOUR_ACCOUNT_ID -Region us-west-2 -BudgetEmail YOU@example.com -PlanOnly

@@ -7,11 +7,12 @@ New-Item -ItemType Directory -Force -Path $infra,(Join-Path $fixture 'sharing/ba
 Copy-Item -Path (Join-Path $source 'infra/*') -Destination $infra
 Copy-Item -Path (Join-Path $source 'backend/*.py') -Destination (Join-Path $fixture 'sharing/backend')
 $global:SglDeploymentMockCalls = [Collections.Generic.List[object]]::new()
-$global:SglMock = @{ Account='111111111111'; Deployed=$false; Paused=$false; FailControl=$false; InvalidStatus=$false }
+$global:SglMock = @{ Account='111111111111'; Concurrency=1001; Deployed=$false; Paused=$false; FailControl=$false; InvalidStatus=$false }
 function global:aws {
     $global:SglDeploymentMockCalls.Add([string[]]$args)
     $global:LASTEXITCODE = 0
     if ($args[0] -eq 'sts') { return (@{ Account = $global:SglMock.Account } | ConvertTo-Json -Compress) }
+    if ($args[0] -eq 'lambda' -and $args[1] -eq 'get-account-settings') { return (@{ConcurrentExecutions=$global:SglMock.Concurrency} | ConvertTo-Json -Compress) }
     if ($args[0] -eq 's3api' -and $args[1] -eq 'head-bucket') { $global:LASTEXITCODE = 1; return }
     if ($args[0] -eq 'cloudformation' -and $args[1] -eq 'describe-stacks') {
         if (!$global:SglMock.Deployed) {
@@ -49,7 +50,7 @@ try {
     catch { if ($_.Exception.Message -notlike '*validate argument*BudgetEmail*') { throw } }
     if ($global:SglDeploymentMockCalls.Count) { throw 'Invalid email reached AWS.' }
     & $deploy @options -PlanOnly
-    if ($global:SglDeploymentMockCalls.Count -ne 3) { throw 'Plan performed unexpected resource calls.' }
+    if ($global:SglDeploymentMockCalls.Count -ne 4) { throw 'Plan performed unexpected resource calls.' }
     Assert-NoDeployment
     if (Test-Path -LiteralPath (Join-Path $fixture 'src/SGL.Core/Data/library-service.json')) { throw 'Plan changed app configuration.' }
     $global:SglDeploymentMockCalls.Clear()
@@ -58,6 +59,12 @@ try {
     catch { if ($_.Exception.Message -notlike '*different account*') { throw } }
     if ($global:SglDeploymentMockCalls.Count -ne 1) { throw 'Account mismatch did not stop immediately.' }
     $global:SglDeploymentMockCalls.Clear(); $global:SglMock.Account='111111111111'
+    $global:SglMock.Concurrency=10
+    try { & $deploy @options; throw 'Low concurrency quota was accepted.' }
+    catch { if ($_.Exception.Message -notlike '*needs at least 103*') { throw } }
+    Assert-NoDeployment
+    if ($global:SglDeploymentMockCalls | Where-Object { $_[1] -eq 'describe-stacks' }) { throw 'Low quota was not rejected during preflight.' }
+    $global:SglDeploymentMockCalls.Clear(); $global:SglMock.Concurrency=1001
     & $deploy @options
     foreach ($call in $global:SglDeploymentMockCalls) {
         $profile=[Array]::IndexOf($call,'--profile'); $region=[Array]::IndexOf($call,'--region')
