@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Security.Cryptography;
+using System.IO.Compression;
 using SGL.Core;
 
 int assertions = 0;
@@ -77,7 +78,7 @@ Reject(() => new GameStore(incomplete, () => false).Read(), "Incomplete scan sil
 string ownership = Path.Combine(work, "ownership");
 Directory.CreateDirectory(ownership);
 var ownedManifest = Configuration.Clone(manifest);
-ownedManifest["Files"]!.AsArray().Insert(0, new JsonObject { ["ContentType"] = "MapCreator", ["OwnerId"] = "foreign", ["FileName"] = "Imported map", ["Saves"] = new JsonArray() });
+ownedManifest["Files"]!.AsArray().Insert(0, new JsonObject { ["FileId"] = "foreign-map", ["ContentType"] = "MapCreator", ["OwnerId"] = "foreign", ["FileName"] = "Imported map", ["Saves"] = new JsonArray() });
 string ownedArchive = GameStore.Inside(ownership, relative);
 Directory.CreateDirectory(Path.GetDirectoryName(ownedArchive)!);
 File.Copy(archive, ownedArchive);
@@ -98,10 +99,12 @@ foreach (string basis in new[] { "koth", "tdm", "swat" })
         var v = Configuration.Value(p, field);
         if (v == null)
             continue;
-        string text = (string)field["type"]! == "boolean" ? ((bool)v ? "False" : "True") : Math.Clamp((double)field["default"]! + 1, (double)field["min"]!, (double)field["max"]!).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string text = (string)field["type"]! == "boolean" ? ((bool)v ? "False" : "True") : (string)field["type"]! == "enum" ? (string)field["choices"]!.AsArray().Last()!["value"]! : Math.Clamp((double)field["default"]! + 1, (double)field["min"]!, (double)field["max"]!).ToString(System.Globalization.CultureInfo.InvariantCulture);
         Configuration.Set(p, field, text);
-        Check(Configuration.Value(p, field) != null, "Mapping lost");
-        if ((string)field["type"]! != "boolean")
+        Check(Configuration.Value(p, field)?.ToString().Equals(text, StringComparison.OrdinalIgnoreCase) == true, $"Mapping lost: {basis}/{field["id"]}");
+        if ((string)field["type"]! == "enum")
+            Reject(() => Configuration.Set(p, field, "invalid-enum-value"), "Unknown enum accepted");
+        else if ((string)field["type"]! != "boolean")
             Reject(() => Configuration.Set(p, field, ((double)field["max"]! + 1).ToString(System.Globalization.CultureInfo.InvariantCulture)), "Range check failed");
     }
     string ItemId(string kind, string name) => (string)Configuration.Catalog[kind]!.AsArray().Single(n => (string)n!["name"]! == name)!["id"]!;
@@ -110,6 +113,39 @@ foreach (string basis in new[] { "koth", "tdm", "swat" })
     Check(Configuration.Loadout(p)!.SequenceEqual(ids), "Loadout patch failed");
     Check(Configuration.ReadArchive(Modes.Pack(Configuration.Wrapped(p))) is JsonObject, "Compiled payload pack failed");
 }
+var documented = Json.Read(Modes.Resource("settings-reference.json"))["settings"]!.AsArray();
+Check(documented.Count == 115, "Documented reference changed without an audit");
+Check(Configuration.Fields.Count(f => (bool?)f["ui"]?["extra"] == false) == 115, "Standard setting coverage is incomplete");
+foreach (var reference in documented)
+{
+    var field = Configuration.Fields.Single(f => (string?)f["ui"]?["referenceId"] == (string?)reference!["id"]);
+    Check((string?)field["ui"]?["category"] == (string?)reference!["category"], "Setting in wrong category");
+    if ((string?)reference["type"] == "slider" && reference["allowedValues"] is JsonObject bounds && bounds["min"] != null && bounds["max"] != null)
+        Check((double)field["min"]! <= (double)bounds["min"]! && (double)field["max"]! >= (double)bounds["max"]!, $"SGL excludes documented endpoint {reference["id"]}");
+    foreach (string basis in new[] { "tdm", "koth", "swat" })
+    {
+        bool objectiveKillScore = basis == "koth" && ((string?)reference!["id"] is "mode.kill_score" or "mode.death_score" or "mode.assist_score" or "mode.suicide_score" or "mode.friendly_fire_score");
+        Check((Configuration.Value(Configuration.New(basis), field) != null) != objectiveKillScore, $"Unexpected base mapping {basis}/{reference!["id"]}");
+    }
+}
+var botsTest = Configuration.New("tdm");
+foreach (var setting in new Dictionary<string, string> { ["botsBotsEnabled"] = "True", ["botsSpawnCustomNumBots"] = "True", ["botsCustomBotNum"] = "12", ["botDifficulty"] = "AI.Difficulty.Level.Hard", ["spawningRespawnTime"] = "2", ["spawningDeathRespawnTimePenalty"] = "-3", ["modeScoreLimit"] = "70", ["health"] = "50.5" })
+    Configuration.Set(botsTest, Configuration.Fields.Single(f => (string)f["id"]! == setting.Key), setting.Value);
+var botRoundTrip = Configuration.ReadArchive(Modes.Pack(Configuration.Wrapped(botsTest)));
+Check(Json.Canonical(botsTest) == Json.Canonical(botRoundTrip), "Bot/spawn/numeric settings changed during export");
+var enumField = Configuration.Fields.Single(f => (string)f["id"]! == "botDifficulty");
+var unknownEnumOriginal = Configuration.Clone(botsTest);
+foreach (var context in Configuration.Contexts(unknownEnumOriginal))
+    if (context[(string)enumField["option"]!] is JsonObject bot)
+        bot["Difficulty"] = "AI.Difficulty.FutureValue";
+var enumEdit = Configuration.Clone(unknownEnumOriginal);
+Configuration.Set(enumEdit, enumField, "AI.Difficulty.Level.Easy");
+Configuration.Reset(enumEdit, unknownEnumOriginal, enumField);
+Check(Json.Canonical(enumEdit) == Json.Canonical(unknownEnumOriginal), "Reset lost an unrecognized saved enum value");
+var legacy = new Dictionary<string, object> { ["format"] = "spingate-mode", ["version"] = 1, ["name"] = "Legacy recipe", ["base"] = "tdm-v1", ["weapon1"] = Configuration.Catalog["weapons"]![0]!["id"]!.GetValue<string>(), ["weapon2"] = Configuration.Catalog["weapons"]![1]!["id"]!.GetValue<string>(), ["equipment"] = Configuration.Catalog["equipment"]![0]!["id"]!.GetValue<string>(), ["rules"] = new Dictionary<string, object>() };
+Modes.Validate(legacy);
+Check(Configuration.ReadArchive(Modes.Pack(legacy)) != null, "Legacy recipe with enum defaults no longer compiles");
+Check(Modes.Summary(legacy).Contains("Legacy recipe"), "Legacy recipe summary failed with enum defaults");
 foreach (string name in new[] { "Sticky-Fists-TDM", "Sticky-Fists-KOTH", "Sticky-Fists-Domination", "Ranked-Loadout-1v1", "Tempo-1v1", "Blink-1v1" })
 {
     var p = (JsonObject)Json.Read(Modes.Resource(name + ".json"));
@@ -146,9 +182,84 @@ using (var signer = ECDsa.Create(ECCurve.NamedCurves.nistP256))
     var bad = new JsonObject { ["payload"] = Convert.ToBase64String(content), ["signature"] = Convert.ToBase64String(signer.SignData(content, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence)) };
     Reject(() => Updates.Verify(bad.ToJsonString(), pub), "Unofficial download URL accepted");
 }
-Console.WriteLine($"Passed {assertions} assertions: mapping preservation, six presets, Git history, no-op scans, rename identity, semantic diffs, forward restoration, byte-exact backups, UTF16, stale-write/game guards and signed updates.");
+byte[] MapFixture(string world = "World.cf1047")
+{
+    using var output = new MemoryStream();
+    using (var zip = new ZipArchive(output, ZipArchiveMode.Create, true))
+    {
+        using (var writer = new StreamWriter(zip.CreateEntry(world).Open()))
+            writer.Write("test map data");
+        using (var writer = new StreamWriter(zip.CreateEntry("info.json").Open(), Encoding.UTF8))
+            writer.Write("{\"name\":\"Fixture arena\",\"author\":\"Test architect\"}");
+    }
+    return output.ToArray();
+}
+byte[] mapBytes = MapFixture();
+Check(Maps.Inspect(mapBytes).Name == "Fixture arena", "Map metadata not read");
+Reject(() => Maps.Inspect(Modes.Pack(Configuration.Wrapped(Configuration.New("tdm")))), "Mode archive accepted as map");
+Reject(() => Maps.Inspect(MapFixture("Prefab.cf1047_prefab")), "Prefab accepted as map");
+Reject(() => Maps.Inspect(MapFixture("../World.cf1047")), "Unsafe map entry accepted");
+foreach (string badId in new[] { "../map", "C:/map", "a/b", "a\\b", "CON", "LPT1", "map." })
+    Check(!Maps.ValidId(badId), "Unsafe map identity accepted: " + badId);
+string mapCatalogJson = "[{\"id\":\"test_arena\",\"name\":\"Fixture arena\",\"author\":\"Architect\",\"category\":\"Playable\",\"download\":\"https://cdn.jsdelivr.net/gh/Splitgate-Architects/Splitgate-CommunityMaps@master/Maps/Playable/test_arena.bin\",\"image\":null}]";
+var mapCatalog = Maps.ParseCatalog(mapCatalogJson);
+Check(mapCatalog.Single().Download.StartsWith("https://raw.githubusercontent.com/"), "CDN URL not normalized to repository");
+Reject(() => Maps.ParseCatalog(mapCatalogJson.Replace("test_arena.bin", "different.bin")), "Mismatched map identity accepted");
+Reject(() => Maps.OfficialAsset("https://example.com/arena.bin", ".bin"), "Foreign map download allowed");
+Reject(() => Maps.OfficialAsset("https://raw.githubusercontent.com/Splitgate-Architects/Splitgate-CommunityMaps/master/Maps/%2e%2e/arena.bin", ".bin"), "Encoded traversal accepted");
+string mapCache = Path.Combine(work, "Cache", "maps.json");
+var fetchedMaps = await Maps.Catalog(mapCache, handler: new MapHttp(mapCatalogJson, mapBytes));
+Check(fetchedMaps.Length == 1, "Map catalog download failed");
+Check((await Maps.Catalog(mapCache, handler: new MapHttp("broken", []))).Length == 1, "Offline cached catalog unavailable");
+Check((await Maps.Download(fetchedMaps[0], handler: new MapHttp(mapCatalogJson, mapBytes))).SequenceEqual(mapBytes), "Map download bytes changed");
+bool invalidMapRejected = false;
+try { await Maps.Download(fetchedMaps[0], handler: new MapHttp(mapCatalogJson, [1, 2, 3])); } catch { invalidMapRejected = true; }
+Check(invalidMapRejected, "Invalid map HTTP response installed");
+var beforeMap = store.Read();
+byte[] beforeMapIndex = File.ReadAllBytes(index);
+Reject(() => new GameStore(cloud, () => true).InstallMap(beforeMap, "blocked-map", mapBytes), "Map game-running guard failed");
+int guardCalls = 0;
+Reject(() => new GameStore(cloud, () => ++guardCalls > 1).InstallMap(beforeMap, "rolled-back-map", mapBytes), "Map commit game guard failed");
+Check(!File.Exists(Path.Combine(cloud, "MapCreator", "rolled-back-map.bin")) && File.ReadAllBytes(index).SequenceEqual(beforeMapIndex), "Failed map transaction left a registration or file");
+string mapBackup = store.InstallMap(beforeMap, "test_arena", mapBytes);
+var afterMap = store.Read();
+Check(afterMap.Maps.Single().Id == "test_arena", "Installed map not scanned");
+Check(File.ReadAllBytes(afterMap.Maps[0].ArchivePath).SequenceEqual(mapBytes), "Installed map archive altered");
+Check(File.ReadAllBytes(Path.Combine(mapBackup, "CloudSaveManifest.json")).SequenceEqual(beforeMapIndex), "Map install backup changed encoding or bytes");
+Check(afterMap.Modes.Single().ArchiveHash == beforeMap.Modes.Single().ArchiveHash, "Map installation changed a mode");
+Check((string?)afterMap.Manifest["Extra"] == "preserve", "Map installation lost manifest metadata");
+var mapEntry = afterMap.Manifest["Files"]!.AsArray().OfType<JsonObject>().Single(f => (string?)f["ContentType"] == "MapCreator");
+Check((string?)mapEntry["OwnerId"] == "recipient" && (string?)mapEntry["Saves"]![0]!["SaveId"] == "custom-map", "MapLoader registration or recipient owner incorrect");
+Reject(() => store.InstallMap(afterMap, "test_arena", mapBytes), "Existing map was overwritten");
+Reject(() => store.InstallMap(beforeMap, "stale-map", mapBytes), "Stale map transaction accepted");
+var modeWithMap = Configuration.Clone(afterMap.Modes.Single().Payload);
+modeWithMap["Options"]!["CustomName"] = "Map companion mode";
+string withMapBackup = store.Apply(afterMap, afterMap.Modes.Single().Id, modeWithMap);
+Check(File.Exists(Path.Combine(withMapBackup, "PreviousFiles", "MapCreator", "test_arena.bin")), "Mode backup omitted map archives");
+store.RestoreBackup(store.Read(), withMapBackup);
+Check(store.Read().Maps.Count == 1 && File.ReadAllBytes(store.Read().Maps.Single().ArchivePath).SequenceEqual(mapBytes), "Complete restore lost map registration or bytes");
+var mapSnapshot = store.Read();
+File.AppendAllText(mapSnapshot.Maps.Single().ArchivePath, "external change");
+Reject(() => store.Apply(mapSnapshot, mapSnapshot.Modes.Single().Id, modeWithMap), "In-place map modification was not detected");
+File.WriteAllBytes(mapSnapshot.Maps.Single().ArchivePath, mapBytes);
+var links = new MapLinks(Path.Combine(work, "profile", "map-mode-links.json"));
+links.Set("test_arena", id, true);
+links.Set("test_arena", id, true);
+links.Set("test_arena", "another-mode", true);
+Check(new MapLinks(Path.Combine(work, "profile", "map-mode-links.json")).ModesFor("test_arena").Length == 2, "Map associations failed persistence or deduplication");
+links.Set("test_arena", id, false);
+Check(links.ModesFor("test_arena").Single() == "another-mode", "Removing map link affected another association");
+string liveCatalogFixture = Path.Combine("artifacts", "references", "maps.json");
+if (File.Exists(liveCatalogFixture)) Check(Maps.ParseCatalog(File.ReadAllText(liveCatalogFixture)).Length > 5000, "Actual community catalog rejected");
+string liveMapFixture = Path.Combine("artifacts", "references", "sample-map.bin");
+if (File.Exists(liveMapFixture)) Check(Maps.Inspect(File.ReadAllBytes(liveMapFixture)).Name == "Simulation Omega", "Actual map archive rejected");
+Console.WriteLine($"Passed {assertions} assertions: complete settings audit, mapping preservation, presets, Git history, restoration, backups, map catalog/download/install, pairing, stale-write/game guards and signed updates.");
 Console.WriteLine("Fixtures: " + work);
 sealed class FixtureHttp(string envelope, byte[] bytes) : HttpMessageHandler
 {
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = request.RequestUri!.AbsoluteUri == Updates.Feed ? new StringContent(envelope) : new ByteArrayContent(bytes) });
+}
+sealed class MapHttp(string catalog, byte[] bytes) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = request.RequestUri!.AbsoluteUri == Maps.CatalogUrl ? new StringContent(catalog) : new ByteArrayContent(bytes) });
 }

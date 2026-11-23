@@ -60,7 +60,7 @@ namespace SGL.Core
         }
         static bool Same(object a, object b)
         {
-            return a is bool ? Equals(a, b) : Number(a) == Number(b);
+            return a is bool || a is string ? Equals(a, b) : Number(a) == Number(b);
         }
         public static readonly Dictionary<string, string> VariantNames = new Dictionary<string, string> {
             {"PortalWarsGameVariant:GV_KOTH_Team_Default", "King of the Hill"},
@@ -153,6 +153,11 @@ namespace SGL.Core
                 {
                     if (!(rules[id] is bool))
                         throw new InvalidDataException(id + " must be on or off.");
+                }
+                else if (type == "enum")
+                {
+                    if (!((object[])field["choices"]).Any(choice => Equals(Obj(choice)["value"], rules[id])))
+                        throw new InvalidDataException("Invalid " + id + " selection.");
                 }
                 else
                 {
@@ -580,12 +585,12 @@ namespace SGL.Core
                 if (File.Exists(temp))
                     File.Delete(temp);
                 if (!committed)
-                foreach (string folder in created)
-                {
-                    foreach (string file in Directory.GetFiles(folder))
-                        File.Delete(file);
-                    Directory.Delete(folder);
-                }
+                    foreach (string folder in created)
+                    {
+                        foreach (string file in Directory.GetFiles(folder))
+                            File.Delete(file);
+                        Directory.Delete(folder);
+                    }
             }
             result.Report = "Installed " + selected.Count + " mode(s): " + String.Join(", ", selected.Select(r => (string)r["name"])) + ".\r\nUpdated: " + result.UpdatedCount + ". Skipped: " + result.SkippedCount + ".\r\nStart Splitgate and choose the modes in your custom lobby.\r\n\r\nBackup: " + backup;
             return result;

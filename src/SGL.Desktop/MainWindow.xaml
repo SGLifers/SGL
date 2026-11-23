@@ -88,7 +88,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <ListBox x:Name="Categories" SelectionChanged="CategoryChanged" />
-                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="12,0,0,0">
+                            <ScrollViewer x:Name="SettingsScroll" Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="12,0,0,0">
                                 <StackPanel x:Name="Rows" />
                             </ScrollViewer>
                         </Grid>
@@ -99,6 +99,67 @@
                             <Button Content="Duplicate" Click="Duplicate" />
                             <TextBlock x:Name="DirtyLabel" VerticalAlignment="Center" Foreground="#F3BE4F" Margin="6" />
                         </WrapPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+            <TabItem x:Name="MapsTab" Header="Maps">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <WrapPanel>
+                        <Button x:Name="RefreshCatalogButton" Content="Refresh community catalog" Click="RefreshCatalogClick" />
+                        <Button Content="Import map .bin" Click="ImportMapClick" />
+                        <Button Content="Community map website" Click="MapWebsiteClick" />
+                    </WrapPanel>
+                    <TextBlock x:Name="MapStatus" Grid.Row="1" Text="Browse community maps or import a map .bin. Close Splitgate to install. Backups are made automatically." TextWrapping="Wrap" Margin="0,8,0,12" Foreground="#B9B7D6" />
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="350" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Margin="0,0,18,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="COMMUNITY MAPS" Foreground="#B9B7D6" Margin="0,0,0,8" />
+                            <DockPanel Grid.Row="1" Margin="0,0,0,10">
+                                <ComboBox x:Name="MapCategory" Width="140" Margin="8,0,0,0" DockPanel.Dock="Right" SelectionChanged="MapFilterChanged" />
+                                <TextBox x:Name="MapSearch" ToolTip="Search map name or author" TextChanged="MapSearchChanged" />
+                            </DockPanel>
+                            <ListBox x:Name="CommunityMaps" Grid.Row="2" SelectionChanged="CommunityMapSelected" ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="5,7">
+                                            <TextBlock Text="{Binding Name}" FontSize="15" TextWrapping="Wrap" />
+                                            <TextBlock Foreground="#B9B7D6"><Run Text="{Binding Author}" /><Run Text=" · " /><Run Text="{Binding Category}" /></TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <Image x:Name="MapPreview" Height="180" Stretch="Uniform" Margin="0,0,0,10" />
+                                <TextBlock x:Name="MapDetails" Text="Select a community map." TextWrapping="Wrap" Margin="0,0,0,10" />
+                                <Button x:Name="InstallMapButton" Content="Install selected map" Background="{StaticResource Gold}" Foreground="#171027" Click="InstallMapClick" IsEnabled="False" />
+                                <Button x:Name="CancelMapButton" Content="Cancel download" Click="CancelMapClick" IsEnabled="False" />
+                                <TextBlock Text="INSTALLED MAPS" Foreground="#B9B7D6" Margin="0,20,0,8" />
+                                <ListBox x:Name="InstalledMaps" Height="150" DisplayMemberPath="Name" SelectionChanged="InstalledMapSelected" />
+                                <TextBlock Text="Associated gamemodes" FontSize="16" Margin="0,18,0,8" />
+                                <TextBlock Text="Choose an installed map and a mode to link them. Select both separately in the game lobby." TextWrapping="Wrap" Foreground="#B9B7D6" Margin="0,0,0,8" />
+                                <ComboBox x:Name="MapModeChoice" DisplayMemberPath="Name" SelectedValuePath="Id" Margin="0,0,0,6" />
+                                <WrapPanel>
+                                    <Button Content="Associate" Click="AssociateMapMode" />
+                                    <Button Content="Remove link" Click="UnlinkMapMode" />
+                                </WrapPanel>
+                                <ListBox x:Name="AssociatedModes" DisplayMemberPath="Name" Height="100" Margin="0,8,0,0" MouseDoubleClick="OpenAssociatedMode" />
+                            </StackPanel>
+                        </ScrollViewer>
                     </Grid>
                 </Grid>
             </TabItem>
@@ -130,7 +191,7 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Text="Restoring a manifest snapshot changes the complete installed-mode list to that point in time. Later registrations will disappear. A safety backup is made first." TextWrapping="Wrap" Margin="0,0,0,14" />
+                    <TextBlock Text="Restoring a manifest snapshot changes the complete installed maps and modes list to that point in time. Later registrations will disappear. A safety backup is made first." TextWrapping="Wrap" Margin="0,0,0,14" />
                     <ListBox x:Name="Backups" Grid.Row="1" />
                     <WrapPanel Grid.Row="2" Margin="0,12,0,0">
                         <Button Content="Open backup folder" Click="OpenBackupFolder" />

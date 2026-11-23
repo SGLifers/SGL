@@ -1,0 +1,1159 @@
+{
+  "source": "https://github.com/SGLifers/SplitgateDocs/blob/main/docs/settings/advanced-settings.md",
+  "commit": "2a7eba0f8a8550f1d456fe7d15963a29a3c57509",
+  "settings": [
+    {
+      "id": "base.round_length",
+      "category": "Base",
+      "name": "Round Length",
+      "type": "slider",
+      "allowedValues": {
+        "min": -1,
+        "max": 999
+      }
+    },
+    {
+      "id": "base.overtime_length",
+      "category": "Base",
+      "name": "Overtime Length",
+      "type": "slider",
+      "allowedValues": {
+        "min": -1,
+        "max": 999
+      }
+    },
+    {
+      "id": "base.sudden_death_length",
+      "category": "Base",
+      "name": "Sudden Death Length",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0,
+        "max": 999
+      }
+    },
+    {
+      "id": "base.allow_normal_sudden_death",
+      "category": "Base",
+      "name": "Allow Normal Sudden Death",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "base.allow_overtime_sudden_death",
+      "category": "Base",
+      "name": "Allow Overtime Sudden Death",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "base.score_mode",
+      "category": "Base",
+      "name": "Score Mode",
+      "type": "enum",
+      "allowedValues": [
+        "HIGHEST SCORE WINS",
+        "LOWEST SCORE WINS"
+      ]
+    },
+    {
+      "id": "mode.spectate_closest_player_on_start_spectating",
+      "category": "Mode",
+      "name": "Spectate Closest Player on Start Spectating",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.spectate_player_who_killed_us_when_on_start_spectating_as_participant",
+      "category": "Mode",
+      "name": "Spectate Player Who Killed Us when on Start Spectating as Participant",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.can_spectate_enemies",
+      "category": "Mode",
+      "name": "Can Spectate Enemies",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.can_spectate_enemies_with_injunction_active",
+      "category": "Mode",
+      "name": "Can Spectate Enemies with Injunction Active",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.free_cam_enabled",
+      "category": "Mode",
+      "name": "Free Cam Enabled",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.free_cam_enabled_with_injunction_active",
+      "category": "Mode",
+      "name": "Free Cam Enabled with Injunction Active",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.one_shot_one_kill",
+      "category": "Mode",
+      "name": "One Shot One Kill",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.kill_score",
+      "category": "Mode",
+      "name": "Kill Score",
+      "type": "slider",
+      "allowedValues": {
+        "min": -10,
+        "max": 10
+      }
+    },
+    {
+      "id": "mode.death_score",
+      "category": "Mode",
+      "name": "Death Score",
+      "type": "slider",
+      "allowedValues": {
+        "min": -10,
+        "max": 10
+      }
+    },
+    {
+      "id": "mode.assist_score",
+      "category": "Mode",
+      "name": "Assist Score",
+      "type": "slider",
+      "allowedValues": {
+        "min": -10,
+        "max": 10
+      }
+    },
+    {
+      "id": "mode.suicide_score",
+      "category": "Mode",
+      "name": "Suicide Score",
+      "type": "slider",
+      "allowedValues": {
+        "min": -10,
+        "max": 10
+      }
+    },
+    {
+      "id": "mode.friendly_fire_score",
+      "category": "Mode",
+      "name": "Friendly Fire Score",
+      "type": "slider",
+      "allowedValues": {
+        "min": -10,
+        "max": 10
+      }
+    },
+    {
+      "id": "mode.airdrops_enabled",
+      "category": "Mode",
+      "name": "Airdrops Enabled",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.min_time_between_spawns",
+      "category": "Mode",
+      "name": "Min Time Between Spawns",
+      "type": "slider",
+      "allowedValues": {
+        "min": 10.0,
+        "max": 999.0
+      }
+    },
+    {
+      "id": "mode.max_time_between_spawns",
+      "category": "Mode",
+      "name": "Max Time Between Spawns",
+      "type": "slider",
+      "allowedValues": {
+        "min": 10.0,
+        "max": 999.0
+      }
+    },
+    {
+      "id": "mode.min_spawn_count",
+      "category": "Mode",
+      "name": "Min Spawn Count",
+      "type": "slider",
+      "allowedValues": {
+        "min": 1,
+        "max": 5
+      }
+    },
+    {
+      "id": "mode.max_spawn_count",
+      "category": "Mode",
+      "name": "Max Spawn Count",
+      "type": "slider",
+      "allowedValues": {
+        "min": 1,
+        "max": 5
+      }
+    },
+    {
+      "id": "mode.time_between_airdrops",
+      "category": "Mode",
+      "name": "Time Between Airdrops",
+      "type": "slider",
+      "allowedValues": {
+        "min": 1.0,
+        "max": 30.0
+      }
+    },
+    {
+      "id": "mode.min_objective_range",
+      "category": "Mode",
+      "name": "Min Objective Range",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 100000.0
+      }
+    },
+    {
+      "id": "mode.max_objective_range",
+      "category": "Mode",
+      "name": "Max Objective Range",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 100000.0
+      }
+    },
+    {
+      "id": "mode.min_average_player_range",
+      "category": "Mode",
+      "name": "Min Average Player Range",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 100000.0
+      }
+    },
+    {
+      "id": "mode.max_average_player_range",
+      "category": "Mode",
+      "name": "Max Average Player Range",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 100000.0
+      }
+    },
+    {
+      "id": "mode.team_wipes_enabled",
+      "category": "Mode",
+      "name": "Team Wipes Enabled",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.score_limit_enabled",
+      "category": "Mode",
+      "name": "Score Limit Enabled",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.score_limit",
+      "category": "Mode",
+      "name": "Score Limit",
+      "type": "slider",
+      "allowedValues": {
+        "min": 1,
+        "max": 999
+      }
+    },
+    {
+      "id": "mode.always_show_scores",
+      "category": "Mode",
+      "name": "Always Show Scores",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.override_score_display_type",
+      "category": "Mode",
+      "name": "Override Score Display Type",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "mode.score_display_type_override",
+      "category": "Mode",
+      "name": "Score Display Type Override",
+      "type": "enum",
+      "allowedValues": [
+        "POINTS EARNED",
+        "FRACTION",
+        "PERCENTAGE"
+      ]
+    },
+    {
+      "id": "map.weapon_pickups_enabled",
+      "category": "Map",
+      "name": "Weapon Pickups Enabled",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "map.drop_only_equipped_weapon",
+      "category": "Map",
+      "name": "Drop Only Equipped Weapon",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "map.life_span",
+      "category": "Map",
+      "name": "Life Span",
+      "type": "slider",
+      "allowedValues": {
+        "min": 1.0,
+        "max": 120.0
+      }
+    },
+    {
+      "id": "map.power_weapon_life_span",
+      "category": "Map",
+      "name": "Power Weapon Life Span",
+      "type": "slider",
+      "allowedValues": {
+        "min": 1.0,
+        "max": 120.0
+      }
+    },
+    {
+      "id": "map.destroy_power_weapon_pickups_ammo_percentage",
+      "category": "Map",
+      "name": "Destroy Power Weapon Pickups Ammo Percentage",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 1.0
+      }
+    },
+    {
+      "id": "map.destroy_weapon_pickups_ammo_percentage",
+      "category": "Map",
+      "name": "Destroy Weapon Pickups Ammo Percentage",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 1.0
+      }
+    },
+    {
+      "id": "map.destroy_pickups_with_no_ammo",
+      "category": "Map",
+      "name": "Destroy Pickups with No Ammo",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "map.enable_map_boundaries",
+      "category": "Map",
+      "name": "Enable Map Boundaries",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "map.item_pads_enabled",
+      "category": "Map",
+      "name": "Item Pads Enabled",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "map.item_respawning_enabled",
+      "category": "Map",
+      "name": "Item Respawning Enabled",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "map.selection_behavior",
+      "category": "Map",
+      "name": "Selection Behavior",
+      "type": "enum",
+      "allowedValues": [
+        "FIRST IN LIST",
+        "RANDOM PER MATCH",
+        "RANDOM PER ROUND",
+        "RANDOM PER SPAWN"
+      ]
+    },
+    {
+      "id": "teams.allow_friendly_fire",
+      "category": "Teams",
+      "name": "Allow Friendly Fire",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "teams.allow_enemy_healing",
+      "category": "Teams",
+      "name": "Allow Enemy Healing",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "teams.ally_collision",
+      "category": "Teams",
+      "name": "Ally Collision",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "teams.enemy_collision",
+      "category": "Teams",
+      "name": "Enemy Collision",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "teams.show_enemy_respawn_timers",
+      "category": "Teams",
+      "name": "Show Enemy Respawn Timers",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "teams.show_enemy_health",
+      "category": "Teams",
+      "name": "Show Enemy Health",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "players.max_health",
+      "category": "Players",
+      "name": "Max Health",
+      "type": "slider",
+      "allowedValues": {
+        "min": 1.0,
+        "max": 900.0
+      }
+    },
+    {
+      "id": "players.drop_all_reserve_ammo",
+      "category": "Players",
+      "name": "Drop All Reserve Ammo",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "players.infinite_magazine",
+      "category": "Players",
+      "name": "Infinite Magazine",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "players.infinite_reserves",
+      "category": "Players",
+      "name": "Infinite Reserves",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "players.infinite_equipment",
+      "category": "Players",
+      "name": "Infinite Equipment",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "players.damage_multiplier",
+      "category": "Players",
+      "name": "Damage Multiplier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.25,
+        "max": 2.5
+      }
+    },
+    {
+      "id": "players.melee_damage_multiplier",
+      "category": "Players",
+      "name": "Melee Damage Multiplier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.25,
+        "max": 2.5
+      }
+    },
+    {
+      "id": "players.precision_damage_multiplier",
+      "category": "Players",
+      "name": "Precision Damage Multiplier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.25,
+        "max": 2.5
+      }
+    },
+    {
+      "id": "players.precision_damage_only",
+      "category": "Players",
+      "name": "Precision Damage Only",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "players.enable_big_head_mode",
+      "category": "Players",
+      "name": "Enable Big Head Mode",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "players.movement_speed_multiplier",
+      "category": "Players",
+      "name": "Movement Speed Multiplier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.25,
+        "max": 2.5
+      }
+    },
+    {
+      "id": "players.gravity_scale_multiplier",
+      "category": "Players",
+      "name": "Gravity Scale Multiplier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.25,
+        "max": 2.5
+      }
+    },
+    {
+      "id": "players.jump_height_multiplier",
+      "category": "Players",
+      "name": "Jump Height Multiplier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.25,
+        "max": 2.5
+      }
+    },
+    {
+      "id": "players.allow_beginning_recharge_in_air",
+      "category": "Players",
+      "name": "Allow Beginning Recharge in Air",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "players.allow_recharge_after_teleport",
+      "category": "Players",
+      "name": "Allow Recharge After Teleport",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "players.thruster_recharge_delay",
+      "category": "Players",
+      "name": "Thruster Recharge Delay",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 100.0
+      }
+    },
+    {
+      "id": "players.lives_enabled",
+      "category": "Players",
+      "name": "Lives Enabled",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "players.number_of_lives",
+      "category": "Players",
+      "name": "Number Of Lives",
+      "type": "slider",
+      "allowedValues": {
+        "min": 1,
+        "max": 100
+      }
+    },
+    {
+      "id": "loadouts.allow_loadout_changes_during_gameplay",
+      "category": "Loadouts",
+      "name": "Allow Loadout Changes During Gameplay",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "abilities.disable_radar",
+      "category": "Abilities",
+      "name": "Disable Radar",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "abilities.weapon_attacks_reveal_self_on_radar",
+      "category": "Abilities",
+      "name": "Weapon Attacks Reveal Self on Radar",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "abilities.radar_boundary_extent",
+      "category": "Abilities",
+      "name": "Radar Boundary Extent",
+      "type": "slider",
+      "allowedValues": {
+        "min": -1.0,
+        "max": 20000.0
+      }
+    },
+    {
+      "id": "abilities.number_of_portal_charges",
+      "category": "Abilities",
+      "name": "Number of Portal Charges",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0,
+        "max": 100
+      }
+    },
+    {
+      "id": "abilities.portal_gun_recharge_rate",
+      "category": "Abilities",
+      "name": "Portal Gun Recharge Rate",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 300.0
+      }
+    },
+    {
+      "id": "abilities.refill_all_portals_on_recharge",
+      "category": "Abilities",
+      "name": "Refill All Portals on Recharge",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "abilities.portal_wall_overloading",
+      "category": "Abilities",
+      "name": "Portal Wall Overloading",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "abilities.enable_portals",
+      "category": "Abilities",
+      "name": "Enable Portals",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "abilities.allow_replacing_ally_portals",
+      "category": "Abilities",
+      "name": "Allow Replacing Ally Portals",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "abilities.allow_replacing_enemy_portals",
+      "category": "Abilities",
+      "name": "Allow Replacing Enemy Portals",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "abilities.block_replacement_time",
+      "category": "Abilities",
+      "name": "Block Replacement Time",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 10.0
+      }
+    },
+    {
+      "id": "abilities.equipment_cooldown_multiplier",
+      "category": "Abilities",
+      "name": "Equipment Cooldown Multiplier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.1,
+        "max": 10.0
+      }
+    },
+    {
+      "id": "abilities.thruster_usage_multiplier",
+      "category": "Abilities",
+      "name": "Thruster Usage Multiplier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.25,
+        "max": 2.5
+      }
+    },
+    {
+      "id": "abilities.thruster_acceleration_multiplier",
+      "category": "Abilities",
+      "name": "Thruster Acceleration Multiplier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.25,
+        "max": 2.5
+      }
+    },
+    {
+      "id": "abilities.enable_sprint",
+      "category": "Abilities",
+      "name": "Enable Sprint",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "abilities.enable_thruster",
+      "category": "Abilities",
+      "name": "Enable Thruster",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "bots.bots_enabled",
+      "category": "Bots",
+      "name": "Bots Enabled",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "bots.auto_rebalance",
+      "category": "Bots",
+      "name": "Auto Rebalance",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "bots.spawn_custom_num_bots",
+      "category": "Bots",
+      "name": "Spawn Custom Num Bots",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "bots.custom_bot_num",
+      "category": "Bots",
+      "name": "Custom Bot Num",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0,
+        "max": 24
+      }
+    },
+    {
+      "id": "spawning.respawn_time",
+      "category": "Spawning",
+      "name": "Respawn Time",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 999.0
+      }
+    },
+    {
+      "id": "spawning.death_respawn_time_penalty",
+      "category": "Spawning",
+      "name": "Death Respawn Time Penalty",
+      "type": "slider",
+      "allowedValues": {
+        "min": -999,
+        "max": 999
+      }
+    },
+    {
+      "id": "spawning.kill_respawn_time_penalty",
+      "category": "Spawning",
+      "name": "Kill Respawn Time Penalty",
+      "type": "slider",
+      "allowedValues": {
+        "min": -999.0,
+        "max": 999.0
+      }
+    },
+    {
+      "id": "spawning.periodic_penalty_time",
+      "category": "Spawning",
+      "name": "Periodic Penalty Time",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 999.0
+      }
+    },
+    {
+      "id": "spawning.periodic_penalty_amount",
+      "category": "Spawning",
+      "name": "Periodic Penalty Amount",
+      "type": "slider",
+      "allowedValues": {
+        "min": -999.0,
+        "max": 999.0
+      }
+    },
+    {
+      "id": "spawning.respawn_penalty_min",
+      "category": "Spawning",
+      "name": "Respawn Penalty Min",
+      "type": "slider",
+      "allowedValues": {
+        "min": -999,
+        "max": 999
+      }
+    },
+    {
+      "id": "spawning.respawn_penalty_max",
+      "category": "Spawning",
+      "name": "Respawn Penalty Max",
+      "type": "slider",
+      "allowedValues": {
+        "min": -999.0,
+        "max": 999.0
+      }
+    },
+    {
+      "id": "spawning.death_in_progress_respawn_modifier",
+      "category": "Spawning",
+      "name": "Death in Progress Respawn Modifier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0,
+        "max": 999
+      }
+    },
+    {
+      "id": "spawning.kill_in_progress_respawn_modifier",
+      "category": "Spawning",
+      "name": "Kill in Progress Respawn Modifier",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0,
+        "max": 999
+      }
+    },
+    {
+      "id": "spawning.allow_timed_respawns",
+      "category": "Spawning",
+      "name": "Allow Timed Respawns",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "spawning.team_based_respawn_penalties",
+      "category": "Spawning",
+      "name": "Team Based Respawn Penalties",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "spawning.always_use_team_spawns",
+      "category": "Spawning",
+      "name": "Always Use Team Spawns",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "spawning.require_nearby_allies",
+      "category": "Spawning",
+      "name": "Require Nearby Allies",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "spawning.require_nearby_objective",
+      "category": "Spawning",
+      "name": "Require Nearby Objective",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "spawning.require_no_nearby_objective",
+      "category": "Spawning",
+      "name": "Require No Nearby Objective",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    },
+    {
+      "id": "spawning.ally_consideration_distance",
+      "category": "Spawning",
+      "name": "Ally Consideration Distance",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 50000.0
+      }
+    },
+    {
+      "id": "spawning.objective_max_distance",
+      "category": "Spawning",
+      "name": "Objective Max Distance",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 50000.0
+      }
+    },
+    {
+      "id": "spawning.objective_min_distance",
+      "category": "Spawning",
+      "name": "Objective Min Distance",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 50000.0
+      }
+    },
+    {
+      "id": "spawning.enemy_portal_spawn_sort_weight",
+      "category": "Spawning",
+      "name": "Enemy Portal Spawn Sort Weight",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 10.0
+      }
+    },
+    {
+      "id": "spawning.enemy_unlinked_portal_spawn_sort_weight",
+      "category": "Spawning",
+      "name": "Enemy Unlinked Portal Spawn Sort Weight",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 10.0
+      }
+    },
+    {
+      "id": "spawning.enemy_portal_wall_spawn_sort_weight",
+      "category": "Spawning",
+      "name": "Enemy Portal Wall Spawn Sort Weight",
+      "type": "slider",
+      "allowedValues": {
+        "min": null,
+        "max": null
+      }
+    },
+    {
+      "id": "spawning.enemy_far_distance",
+      "category": "Spawning",
+      "name": "Enemy Far Distance",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 50000.0
+      }
+    },
+    {
+      "id": "spawning.enemy_portal_wall_consideration_distance",
+      "category": "Spawning",
+      "name": "Enemy Portal Wall Consideration Distance",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 50000.0
+      }
+    },
+    {
+      "id": "spawning.enemy_portal_consideration_distance",
+      "category": "Spawning",
+      "name": "Enemy Portal Consideration Distance",
+      "type": "slider",
+      "allowedValues": {
+        "min": 0.0,
+        "max": 50000.0
+      }
+    },
+    {
+      "id": "spawning.prevent_spawning_when_team_is_dead",
+      "category": "Spawning",
+      "name": "Prevent Spawning when Team Is Dead",
+      "type": "boolean",
+      "allowedValues": [
+        false,
+        true
+      ]
+    }
+  ]
+}

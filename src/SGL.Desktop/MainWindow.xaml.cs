@@ -20,6 +20,7 @@ public partial class MainWindow : Window
         dataRoot = Arg("--data") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SGL");
         Directory.CreateDirectory(dataRoot);
         InitializeComponent();
+        Tabs.SelectionChanged += MapsTabSelected;
         loading = true;
         var prefs = Preferences();
         Folder.Text = Arg("--cloud-save") ?? (string?)prefs["cloudSave"] ?? GameStore.DefaultRoot;
@@ -103,11 +104,12 @@ public partial class MainWindow : Window
             string? commit = history.Capture(next, snapshot == null ? "Startup: capture saved gamemodes" : "Detected changes outside SGL");
             snapshot = next;
             Installed.ItemsSource = next.Modes.Where(m => m.Name.Contains(Search.Text, StringComparison.OrdinalIgnoreCase)).ToArray();
+            RefreshMaps();
             UpdateRevisions();
             string backupRoot = Path.Combine(store.Root, "Backup");
             Backups.ItemsSource = Directory.Exists(backupRoot) ? Directory.GetDirectories(backupRoot).OrderDescending().ToArray() : [];
             SavePreferences();
-            Status.Text = $"{next.Modes.Count} modes found. " + (commit == null ? "History is up to date." : "Captured revision " + commit[..7] + ".");
+            Status.Text = $"{next.Modes.Count} modes and {next.Maps.Count} maps found. " + (commit == null ? "History is up to date." : "Captured revision " + commit[..7] + ".");
         }
         catch (Exception error) { Status.Text = "Could not scan saves: " + error.Message; if (announce) Report(error); }
     }
@@ -186,9 +188,10 @@ public partial class MainWindow : Window
     {
         if (Rows != null)
             Render();
+        SettingsScroll?.ScrollToTop();
     }
     void LoadoutCategory(object s, RoutedEventArgs e) => Categories.SelectedItem = "Loadouts";
-    static string Text(JsonNode? node) => node is JsonValue value && value.TryGetValue<bool>(out var b) ? (b ? "True" : "False") : node?.ToJsonString() ?? "";
+    static string Text(JsonNode? node) => node is JsonValue value && value.TryGetValue<bool>(out var b) ? (b ? "True" : "False") : node is JsonValue text && text.TryGetValue<string>(out var str) ? str : node?.ToJsonString() ?? "";
     static Brush Brush(string hex) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
     void Render()
     {
@@ -206,7 +209,6 @@ public partial class MainWindow : Window
         if (category == "Loadouts")
         {
             RenderLoadout();
-            return;
         }
         var fields = Configuration.Fields.Where(f => (string?)f["ui"]?["category"] == category).OrderBy(f => (int?)f["ui"]?["order"] ?? 0).ToArray();
         if (fields.Length == 0)
@@ -223,6 +225,7 @@ public partial class MainWindow : Window
         var border = new Border { Background = Brush("#1C1C3C"), BorderBrush = Brush("#494264"), BorderThickness = new Thickness(0, 0, 0, 1), Child = panel, Margin = new Thickness(0, 0, 0, 6) };
         var head = new DockPanel();
         var reset = new Button { Content = "Reset", FontSize = 12, Padding = new Thickness(8, 4, 8, 4) };
+        reset.IsEnabled = value != null;
         DockPanel.SetDock(reset, Dock.Right);
         head.Children.Add(reset);
         head.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, FontSize = 15, TextWrapping = TextWrapping.Wrap });
@@ -234,6 +237,8 @@ public partial class MainWindow : Window
         {
             var v = Configuration.Value(payload!, f);
             var notes = new List<string>();
+            if (v == null)
+                notes.Add("Not present in this saved base");
             if ((bool?)f["ui"]?["extra"] == true)
                 notes.Add("SGL extra · absent from the documented Standard Rules menu");
             if (v != null && opened != null && !JsonNode.DeepEquals(v, Configuration.Value(opened, f)))
@@ -242,12 +247,14 @@ public partial class MainWindow : Window
                 notes.Add("Outside in-game range · " + min + "–" + max);
             marker.Text = string.Join("  |  ", notes);
             help.Text = (string?)f["ui"]?["description"] ?? (string?)f["help"] ?? "";
+            if (f["ui"]?["rangeNote"] is JsonNode rangeNote)
+                help.Text += "  " + rangeNote.GetValue<string>();
             if (f["ui"]?["min"] != null)
                 help.Text += $"  In-game: {f["ui"]!["min"]}–{f["ui"]!["max"]}. SGL: {f["min"]}–{f["max"]}.";
             if (opened != null)
                 help.Text += "  Opened: " + Text(Configuration.Value(opened, f)) + ".";
         }
-        reset.Click += (s, e) => Run(() => { var original = opened == null ? null : Configuration.Value(opened, f); if (original != null) { Configuration.Set(payload!, f, Text(original)); invalid.Remove(id); MarkDirty(); Render(); } });
+        reset.Click += (s, e) => Run(() => { if (opened != null) { Configuration.Reset(payload!, opened, f); invalid.Remove(id); MarkDirty(); Render(); } });
         if (boolean)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };
@@ -267,6 +274,18 @@ public partial class MainWindow : Window
             DockPanel.SetDock(row, Dock.Right);
             row.Width = 200;
             head.Children.Insert(head.Children.Count - 1, row);
+        }
+        else if ((string)f["type"]! == "enum")
+        {
+            var choices = f["choices"]!.AsArray().Select(n => new Item((string)n!["value"]!, (string)n["label"]!)).ToList();
+            if (value != null && !choices.Any(c => c.Id == Text(value)))
+                choices.Insert(0, new Item(Text(value), "Current: " + Text(value)));
+            var pick = new ComboBox { ItemsSource = choices, DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedValue = Text(value), IsEnabled = value != null, Width = 240 };
+            AutomationProperties.SetName(pick, label);
+            AutomationProperties.SetAutomationId(pick, id);
+            pick.SelectionChanged += (s, e) => Run(() => { if (pick.SelectedItem is Item item) { Configuration.Set(payload!, f, item.Id); MarkDirty(); Describe(); } });
+            DockPanel.SetDock(pick, Dock.Right);
+            head.Children.Insert(head.Children.Count - 1, pick);
         }
         else
         {

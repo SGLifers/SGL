@@ -28,8 +28,8 @@ public static class Configuration
     {
         string option = (string)field["option"]!, property = (string)field["property"]!;
         foreach (var options in Contexts(payload))
-        if (options[option]?[property] is JsonNode value)
-            return (bool)field["wrapped"]! ? value["defaultValue"]?.DeepClone() : value.DeepClone();
+            if (options[option]?[property] is JsonNode value)
+                return (bool)field["wrapped"]! ? value["defaultValue"]?.DeepClone() : value.DeepClone();
         return null;
     }
     public static void Set(JsonObject payload, JsonObject field, string text)
@@ -40,6 +40,12 @@ public static class Configuration
         JsonNode value;
         if (type == "boolean")
             value = JsonValue.Create(bool.Parse(text))!;
+        else if (type == "enum")
+        {
+            if (!field["choices"]!.AsArray().Any(n => (string?)n!["value"] == text))
+                throw new InvalidDataException($"Invalid {field["label"]} selection.");
+            value = JsonValue.Create(text)!;
+        }
         else
         {
             if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double n) || !double.IsFinite(n) || n < (double)field["min"]! || n > (double)field["max"]! || (type == "integer" && n != Math.Truncate(n)))
@@ -49,47 +55,58 @@ public static class Configuration
         string option = (string)field["option"]!, property = (string)field["property"]!;
         int count = 0;
         foreach (var options in Contexts(payload))
-        if (options[option] is JsonObject settings && settings[property] is JsonNode current)
-        {
-            if ((bool)field["wrapped"]!)
-                current["defaultValue"] = value.DeepClone();
-            else
-                settings[property] = value.DeepClone();
-            count++;
-        }
+            if (options[option] is JsonObject settings && settings[property] is JsonNode current)
+            {
+                if ((bool)field["wrapped"]!)
+                    current["defaultValue"] = value.DeepClone();
+                else
+                    settings[property] = value.DeepClone();
+                count++;
+            }
         if (count == 0)
             throw new InvalidDataException("This base does not expose that setting.");
         if ((string)field["id"]! == "infiniteReserves" && text.Equals("true", StringComparison.OrdinalIgnoreCase))
             Set(payload, Fields.Single(f => (string)f["id"]! == "weaponDrops"), "false");
     }
+    public static void Reset(JsonObject payload, JsonObject opened, JsonObject field)
+    {
+        string id = (string)field["id"]!, option = (string)field["option"]!, property = (string)field["property"]!;
+        if (id == "weaponDrops" && Value(opened, field)?.GetValue<bool>() == true && Value(payload, Fields.Single(f => (string)f["id"]! == "infiniteReserves"))?.GetValue<bool>() == true)
+            throw new InvalidDataException("Weapon drops must stay off while infinite reserves are enabled.");
+        foreach (var context in payload["Options"]!["OptionMap"]!.AsObject())
+            if (context.Value?["Options"]?[option] is JsonObject settings && opened["Options"]?["OptionMap"]?[context.Key]?["Options"]?[option]?[property] is JsonNode original)
+                settings[property] = original.DeepClone();
+        if (id == "infiniteReserves" && Value(payload, field)?.GetValue<bool>() == true)
+            Set(payload, Fields.Single(f => (string)f["id"]! == "weaponDrops"), "false");
+    }
     public static string[]? Loadout(JsonObject p)
     {
         foreach (var options in Contexts(p))
-        if (options[Modes.Faction]?["CustomLoadouts"]?["customLoadouts"]?["None"]?["customLoadouts"] is JsonArray list && list.Count > 0)
-        {
-            var items = list[0]?["selectedItems"];
-            if (items == null)
-                continue;
-            return Slots.Select(s => items[s]?.GetValue<string>()?.Replace("LoadoutItem:", "") ?? "").ToArray();
-        }
+            if (options[Modes.Faction]?["CustomLoadouts"]?["customLoadouts"]?["None"]?["customLoadouts"] is JsonArray list && list.Count > 0)
+            {
+                var items = list[0]?["selectedItems"];
+                if (items == null)
+                    continue;
+                return Slots.Select(s => items[s]?.GetValue<string>()?.Replace("LoadoutItem:", "") ?? "").ToArray();
+            }
         return null;
     }
     public static readonly string[] Slots = ["LoadoutSlot.CustomWeapon.01.Weapon", "LoadoutSlot.CustomWeapon.02.Weapon", "LoadoutSlot.CustomEquipment"];
     public static void SetLoadout(JsonObject p, string[] ids)
     {
         for (int i = 0; i < 3; i++)
-        if (!Catalog[i == 2 ? "equipment" : "weapons"]!.AsArray().Any(n => (string)n!["id"]! == ids[i]))
-            throw new InvalidDataException("Unknown loadout item.");
+            if (!Catalog[i == 2 ? "equipment" : "weapons"]!.AsArray().Any(n => (string)n!["id"]! == ids[i]))
+                throw new InvalidDataException("Unknown loadout item.");
         foreach (var options in Contexts(p))
-        if (options[Modes.Faction] is JsonObject faction)
-        {
-            faction["bAllowLoadoutChangesDuringGameplay"] = false;
-            // Explicit loadout edits replace starting selection only; all other options survive.
-            var items = new JsonObject();
-            for (int i = 0; i < 3; i++)
-                items[Slots[i]] = "LoadoutItem:" + ids[i];
-            faction["CustomLoadouts"] = new JsonObject { ["customLoadouts"] = new JsonObject { ["None"] = new JsonObject { ["customLoadouts"] = new JsonArray(new JsonObject { ["selectedItems"] = items, ["randomItemTags"] = new JsonObject(), ["randomWeaponAttachmentSlots"] = new JsonObject() }) } } };
-        }
+            if (options[Modes.Faction] is JsonObject faction)
+            {
+                faction["bAllowLoadoutChangesDuringGameplay"] = false;
+                // Explicit loadout edits replace starting selection only; all other options survive.
+                var items = new JsonObject();
+                for (int i = 0; i < 3; i++)
+                    items[Slots[i]] = "LoadoutItem:" + ids[i];
+                faction["CustomLoadouts"] = new JsonObject { ["customLoadouts"] = new JsonObject { ["None"] = new JsonObject { ["customLoadouts"] = new JsonArray(new JsonObject { ["selectedItems"] = items, ["randomItemTags"] = new JsonObject(), ["randomWeaponAttachmentSlots"] = new JsonObject() }) } } };
+            }
     }
     public static string Name(JsonObject p) => (string?)p["Options"]?["CustomName"] ?? "Unnamed mode";
     public static bool Supported(JsonObject p) => p["Variant"] is JsonValue v && v.TryGetValue<string>(out var id) && Modes.VariantNames.ContainsKey(id);
@@ -117,11 +134,11 @@ public static class Configuration
         }
         string label = path;
         foreach (var f in Fields)
-        if (path.Contains((string)f["option"]!, StringComparison.Ordinal) && path.Contains("/" + (string)f["property"]!, StringComparison.Ordinal))
-        {
-            label = (string?)f["ui"]?["label"] ?? (string)f["label"]!;
-            break;
-        }
+            if (path.Contains((string)f["option"]!, StringComparison.Ordinal) && path.Contains("/" + (string)f["property"]!, StringComparison.Ordinal))
+            {
+                label = (string?)f["ui"]?["label"] ?? (string)f["label"]!;
+                break;
+            }
         lines.Add($"{label}: {a?.ToJsonString() ?? "(absent)"} → {b?.ToJsonString() ?? "(absent)"}");
     }
 }

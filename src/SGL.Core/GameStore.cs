@@ -6,8 +6,11 @@ public sealed record SavedMode(string Id, string Name, JsonObject Payload, strin
 {
     public override string ToString() => Name;
 }
-public sealed record GameSnapshot(string ManifestHash, JsonObject Manifest, IReadOnlyList<SavedMode> Modes);
-public sealed class GameStore(string root, Func<bool>? running = null)
+public sealed record GameSnapshot(string ManifestHash, JsonObject Manifest, IReadOnlyList<SavedMode> Modes)
+{
+    public IReadOnlyList<SavedMap> Maps { get; init; } = [];
+}
+public sealed partial class GameStore(string root, Func<bool>? running = null)
 {
     public string Root { get; } = Path.GetFullPath(root);
     public static string DefaultRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PortalWars2", "Saved", "Cloud", "CloudSave");
@@ -31,6 +34,7 @@ public sealed class GameStore(string root, Func<bool>? running = null)
             manifest = (JsonObject)Json.Read(reader.ReadToEnd());
         var files = manifest["Files"]?.AsArray() ?? throw new InvalidDataException("Save index has no Files array.");
         var modes = new List<SavedMode>();
+        var maps = new List<SavedMap>();
         foreach (var file in files.OfType<JsonObject>().Where(f => (string?)f["ContentType"] == "CustomModes"))
         {
             string id = (string?)file["FileId"] ?? throw new InvalidDataException("Mode has no identity.");
@@ -46,19 +50,37 @@ public sealed class GameStore(string root, Func<bool>? running = null)
                 throw new IOException("A mode changed during scanning. Refresh to retry.");
             modes.Add(new(id, Configuration.Name(p), p, path, Json.Hash(bytes)));
         }
+        foreach (var file in files.OfType<JsonObject>().Where(f => (string?)f["ContentType"] == "MapCreator"))
+        {
+            string id = (string?)file["FileId"] ?? throw new InvalidDataException("Map has no identity.");
+            if (maps.Any(m => m.Id == id))
+                throw new InvalidDataException("Duplicate map identity in save index.");
+            var save = file["Saves"]?.AsArray().OfType<JsonObject>().OrderByDescending(s => (string?)s["CreatedAt"], StringComparer.Ordinal).FirstOrDefault();
+            if (save == null)
+                continue;
+            string path = Inside(Root, (string?)save["RelativePath"] ?? "");
+            byte[] bytes = File.ReadAllBytes(path);
+            string hash = Json.Hash(bytes);
+            if (hash != Json.Hash(File.ReadAllBytes(path)))
+                throw new IOException("A map changed during scanning. Refresh to retry.");
+            maps.Add(new(id, (string?)file["FileName"] ?? id, (string?)file["AuthorDisplayName"] ?? "", path, hash));
+        }
         if (Json.Hash(original) != Json.Hash(File.ReadAllBytes(ManifestPath)))
             throw new IOException("The game changed its save index during scanning. Refresh to retry.");
-        return new(Json.Hash(original), manifest, modes);
+        return new(Json.Hash(original), manifest, modes)
+        {
+            Maps = maps
+        };
     }
     void CheckClosed()
     {
         if ((running ?? Modes.GameRunning)())
-            throw new InvalidOperationException("Close Splitgate before applying modes or restoring backups.");
+            throw new InvalidOperationException("Close Splitgate before installing maps, applying modes or restoring backups.");
     }
     void CheckCurrent(GameSnapshot expected)
     {
         var current = Read();
-        if (current.ManifestHash != expected.ManifestHash || !current.Modes.Select(m => (m.Id, m.ArchiveHash)).SequenceEqual(expected.Modes.Select(m => (m.Id, m.ArchiveHash))))
+        if (current.ManifestHash != expected.ManifestHash || !current.Modes.Select(m => (m.Id, m.ArchiveHash)).SequenceEqual(expected.Modes.Select(m => (m.Id, m.ArchiveHash))) || !current.Maps.Select(m => (m.Id, m.ArchiveHash)).SequenceEqual(expected.Maps.Select(m => (m.Id, m.ArchiveHash))))
             throw new IOException("Game saves changed since refresh. Refresh before saving; your draft is retained.");
     }
     static string Owner(JsonArray entries)
@@ -123,18 +145,18 @@ public sealed class GameStore(string root, Func<bool>? running = null)
         File.WriteAllBytes(Path.Combine(backup, "CloudSaveManifest.json"), original);
         // A full index restore must have every referenced archive available.
         foreach (var file in snapshot.Manifest["Files"]!.AsArray().OfType<JsonObject>())
-        foreach (var save in file["Saves"]?.AsArray().OfType<JsonObject>() ?? [])
-        {
-            string? relative = (string?)save["RelativePath"];
-            if (relative == null)
-                continue;
-            string source = Inside(Root, relative);
-            if (!File.Exists(source))
-                throw new IOException("Referenced archive is missing; backup cannot be completed: " + relative);
-            string target = Inside(Path.Combine(backup, "PreviousFiles"), relative);
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            File.Copy(source, target, false);
-        }
+            foreach (var save in file["Saves"]?.AsArray().OfType<JsonObject>() ?? [])
+            {
+                string? relative = (string?)save["RelativePath"];
+                if (relative == null)
+                    continue;
+                string source = Inside(Root, relative);
+                if (!File.Exists(source))
+                    throw new IOException("Referenced archive is missing; backup cannot be completed: " + relative);
+                string target = Inside(Path.Combine(backup, "PreviousFiles"), relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(source, target, false);
+            }
         return backup;
     }
     public string RestoreBackup(GameSnapshot expected, string backup)
@@ -149,18 +171,18 @@ public sealed class GameStore(string root, Func<bool>? running = null)
             doc = (JsonObject)Json.Read(reader.ReadToEnd());
         var copies = new List<(string Source, string Destination)>();
         foreach (var file in doc["Files"]!.AsArray().OfType<JsonObject>())
-        foreach (var save in file["Saves"]?.AsArray().OfType<JsonObject>() ?? [])
-        {
-            string relative = (string)save["RelativePath"]!;
-            string source = Inside(Path.Combine(backup, "PreviousFiles"), relative);
-            if (!File.Exists(source))
-                throw new IOException("This backup lacks an archive snapshot: " + relative + ". Index-only legacy backups require manual recovery.");
-            string newId = Guid.NewGuid().ToString();
-            string fresh = Path.Combine(Path.GetDirectoryName(relative) ?? "", newId + Path.GetExtension(relative)).Replace('\\', '/');
-            copies.Add((source, Inside(Root, fresh)));
-            save["SaveId"] = newId;
-            save["RelativePath"] = fresh;
-        }
+            foreach (var save in file["Saves"]?.AsArray().OfType<JsonObject>() ?? [])
+            {
+                string relative = (string)save["RelativePath"]!;
+                string source = Inside(Path.Combine(backup, "PreviousFiles"), relative);
+                if (!File.Exists(source))
+                    throw new IOException("This backup lacks an archive snapshot: " + relative + ". Index-only legacy backups require manual recovery.");
+                string newId = Guid.NewGuid().ToString();
+                string fresh = Path.Combine(Path.GetDirectoryName(relative) ?? "", newId + Path.GetExtension(relative)).Replace('\\', '/');
+                copies.Add((source, Inside(Root, fresh)));
+                save["SaveId"] = newId;
+                save["RelativePath"] = fresh;
+            }
         string safety = CreateBackup(File.ReadAllBytes(ManifestPath), expected, []);
         string temp = ManifestPath + ".restore-" + Guid.NewGuid().ToString("N");
         var created = new List<string>();
@@ -183,8 +205,11 @@ public sealed class GameStore(string root, Func<bool>? running = null)
         }
         finally
         {
-            if (File.Exists(temp)) File.Delete(temp);
-            if (!committed) foreach (string path in created) File.Delete(path);
+            if (File.Exists(temp))
+                File.Delete(temp);
+            if (!committed)
+                foreach (string path in created)
+                    File.Delete(path);
         }
         return safety;
     }
