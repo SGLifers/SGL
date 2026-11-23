@@ -20,6 +20,7 @@
             </Style.Triggers>
         </Style>
         <Style TargetType="Window">
+            <Setter Property="Icon" Value="pack://application:,,,/SGL;component/Assets/sgl.ico" />
             <Setter Property="Background" Value="#10152B" />
             <Setter Property="Foreground" Value="{StaticResource Ink}" />
             <Setter Property="FontFamily" Value="Segoe UI" />

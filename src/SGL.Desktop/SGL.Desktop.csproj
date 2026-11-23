@@ -8,8 +8,10 @@
         <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
         <ApplicationManifest>app.manifest</ApplicationManifest>
+        <ApplicationIcon>Assets\sgl.ico</ApplicationIcon>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\SGL.Core\SGL.Core.csproj" />
+        <Resource Include="Assets\sgl.ico" />
     </ItemGroup>
 </Project>

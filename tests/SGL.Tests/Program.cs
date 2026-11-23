@@ -7,6 +7,14 @@ using SGL.Core;
 int assertions = 0;
 void Check(bool test, string message) { assertions++; if (!test) throw new Exception(message); }
 void Reject(Action action, string message) { bool failed = false; try { action(); } catch { failed = true; } Check(failed, message); }
+var searchableFields = Configuration.Fields.ToArray();
+Check(searchableFields.Where(f => SettingSearch.Matches(f, "friendly-fire")).Any(f => (string?)f["id"] == "friendlyFire"), "Setting search missed punctuation-separated words");
+Check(searchableFields.Where(f => SettingSearch.Matches(f, "BOTS difficulty")).Any(f => (string?)f["id"] == "botDifficulty"), "Setting search missed another category");
+Check(searchableFields.Where(f => SettingSearch.Matches(f, "precisionDamage")).Any(f => (string?)f["id"] == "precisionDamage"), "Setting search missed an identifier");
+Check(searchableFields.Where(f => SettingSearch.Matches(f, "easy")).Any(f => (string?)f["id"] == "botDifficulty"), "Setting search missed a choice label");
+Check(!searchableFields.Any(f => SettingSearch.Matches(f, "no-such-control-zzzzz")), "Unmatched setting query returned results");
+Check(SettingSearch.LoadoutMatches("Cadence") && SettingSearch.LoadoutMatches("primary weapon") && SettingSearch.LoadoutMatches("EMP"), "Loadout choices were not searchable");
+Check(!SettingSearch.LoadoutMatches("precision damage"), "Loadouts matched an unrelated setting");
 string privateMessage = @"C:\Users\PrivatePlayer\CloudSave\SecretMap.bin token=private-token discord-id=123456";
 string reportDiagnostics = BugReports.Diagnostics(new Version(0, 3, 1), 4, 2, true, 1,
     new IOException(privateMessage, new InvalidOperationException("client_secret=never-share-this")));

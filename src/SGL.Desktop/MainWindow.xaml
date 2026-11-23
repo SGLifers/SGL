@@ -60,6 +60,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
@@ -89,7 +90,15 @@
                             <CheckBox x:Name="LockSecondary" Content="Lock secondary" />
                             <CheckBox x:Name="LockEquipment" Content="Lock equipment" />
                         </WrapPanel>
-                        <Grid x:Name="SettingsPanes" Grid.Row="2">
+                        <StackPanel Grid.Row="2" Margin="0,0,0,12">
+                            <TextBlock Text="Search all settings" Foreground="#B9B7D6" FontSize="12" Margin="0,0,0,4" />
+                            <DockPanel>
+                                <Button x:Name="ClearSettingsSearchButton" DockPanel.Dock="Right" Content="Clear" Click="ClearSettingsSearch" Margin="8,0,0,0" IsEnabled="False" />
+                                <TextBox x:Name="SettingsSearch" MaxLength="160" TextChanged="SettingsSearchChanged" KeyDown="SettingsSearchKeyDown" ToolTip="Search settings, descriptions, categories and loadout choices" AutomationProperties.Name="Search all gamemode settings" />
+                            </DockPanel>
+                            <TextBlock x:Name="SettingsSearchStatus" Foreground="#B9B7D6" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Grid x:Name="SettingsPanes" Grid.Row="3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition x:Name="CategorySidebar" Width="135" MinWidth="105" MaxWidth="260" />
                                 <ColumnDefinition Width="10" />
@@ -101,7 +110,7 @@
                                 <StackPanel x:Name="Rows" />
                             </ScrollViewer>
                         </Grid>
-                        <WrapPanel Grid.Row="3" Margin="0,12,0,0">
+                        <WrapPanel Grid.Row="4" Margin="0,12,0,0">
                             <Button x:Name="SaveButton" Content="Save to game" Background="{StaticResource Gold}" Foreground="#171027" Click="SaveToGame" />
                             <Button Content="Save draft" Click="SaveDraft" />
                             <Button Content="Export JSON" Click="Export" />

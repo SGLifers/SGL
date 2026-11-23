@@ -6,4 +6,4 @@
 
 The four `*-annotated.svg` files embed the original screenshot bytes unchanged and add a red rectangle and arrow over the relevant button. Regenerate them with `node scripts/annotate-setup-screenshots.mjs`. The self-contained SVGs work in both the online and offline guides.
 
-`sgl-editor.png` and `sgl-history.png` show SGL with demonstration data. The old `protection-history.png` is retained for existing package checks but is no longer displayed. Replace it with the user's actual SGL detection screenshot when supplied.
+`sgl-editor.png` and `sgl-history.png` show SGL with demonstration data. `protection-history.png` is the original Microsoft Support reference screenshot, restored to the guide at the user's request. It is an example rather than an actual SGL detection. Source: https://support.microsoft.com/en-us/windows/security/windows-security/protection-history-in-the-windows-security-app

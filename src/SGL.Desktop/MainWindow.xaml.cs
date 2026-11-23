@@ -13,6 +13,8 @@ public partial class MainWindow : Window
 {
     readonly string dataRoot; readonly string[] args; readonly Dictionary<string, string> invalid = [];
     GameStore? store; GameSnapshot? snapshot; History? history; JsonObject? payload, opened; string? selectedId, openedArchiveHash; bool loading, dirty; string? lastBackup;
+    bool changingSettingsCategory;
+    string settingsCategoryBeforeSearch = "Players";
     string HistoryDirectory => Path.Combine(dataRoot, "Profiles", Json.Hash(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(Folder.Text).ToUpperInvariant()))[..16], "History");
     public MainWindow(string[] args)
     {
@@ -198,11 +200,41 @@ public partial class MainWindow : Window
     }
     void CategoryChanged(object s, SelectionChangedEventArgs e)
     {
+        if (changingSettingsCategory) return;
+        if (Categories.SelectedItem is string category) settingsCategoryBeforeSearch = category;
+        if (SettingsSearch?.Text.Length > 0)
+            SettingsSearch.Clear();
         if (Rows != null)
             Render();
         SettingsScroll?.ScrollToTop();
     }
-    void LoadoutCategory(object s, RoutedEventArgs e) => Categories.SelectedItem = "Loadouts";
+    void LoadoutCategory(object s, RoutedEventArgs e) { SettingsSearch.Clear(); Categories.SelectedItem = "Loadouts"; }
+    void SettingsSearchChanged(object s, TextChangedEventArgs e)
+    {
+        if (ClearSettingsSearchButton != null) ClearSettingsSearchButton.IsEnabled = !string.IsNullOrEmpty(SettingsSearch.Text);
+        if (Categories != null)
+        {
+            changingSettingsCategory = true;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(SettingsSearch.Text) && Categories.SelectedItem is string category)
+                {
+                    settingsCategoryBeforeSearch = category;
+                    Categories.SelectedIndex = -1;
+                }
+                else if (string.IsNullOrWhiteSpace(SettingsSearch.Text) && Categories.SelectedIndex < 0)
+                    Categories.SelectedItem = settingsCategoryBeforeSearch;
+            }
+            finally { changingSettingsCategory = false; }
+        }
+        Render();
+        SettingsScroll?.ScrollToTop();
+    }
+    void ClearSettingsSearch(object s, RoutedEventArgs e) { SettingsSearch.Clear(); SettingsSearch.Focus(); }
+    void SettingsSearchKeyDown(object s, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Escape) { SettingsSearch.Clear(); e.Handled = true; }
+    }
     static string Text(JsonNode? node) => node is JsonValue value && value.TryGetValue<bool>(out var b) ? (b ? "True" : "False") : node is JsonValue text && text.TryGetValue<string>(out var str) ? str : node?.ToJsonString() ?? "";
     static Brush Brush(string hex) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
     void Render()
@@ -210,7 +242,8 @@ public partial class MainWindow : Window
         if (payload == null || Rows == null)
             return;
         Rows.Children.Clear();
-        DirtyLabel.Text = dirty ? "Unsaved changes" : "";
+        DirtyLabel.Text = invalid.Count > 0 ? "Correct invalid values before saving" : dirty ? "Unsaved changes" : "";
+        if (SettingsSearchStatus != null) SettingsSearchStatus.Text = "";
         SaveButton.IsEnabled = Configuration.Supported(payload);
         if (!Configuration.Supported(payload))
         {
@@ -218,6 +251,24 @@ public partial class MainWindow : Window
             return;
         }
         string category = (string?)Categories.SelectedItem ?? "Players";
+        string query = SettingsSearch?.Text.Trim() ?? "";
+        if (query.Length > 0)
+        {
+            var matches = Configuration.Fields.Where(f => SettingSearch.Matches(f, query)).ToArray();
+            bool loadout = SettingSearch.LoadoutMatches(query);
+            int count = matches.Length + (loadout ? 3 : 0);
+            if (SettingsSearchStatus != null) SettingsSearchStatus.Text = $"{count} matching setting{(count == 1 ? "" : "s")} across all categories";
+            foreach (string group in Configuration.Schema["ui"]!["categories"]!.AsArray().Select(n => n!.GetValue<string>()))
+            {
+                var fieldsInGroup = matches.Where(f => (string?)f["ui"]?["category"] == group).OrderBy(f => (int?)f["ui"]?["order"] ?? 0).ToArray();
+                if (fieldsInGroup.Length == 0 && !(loadout && group == "Loadouts")) continue;
+                Rows.Children.Add(new TextBlock { Text = group, FontSize = 18, FontWeight = FontWeights.SemiBold, Foreground = Brush("#F3BE4F"), Margin = new Thickness(14, 14, 14, 8) });
+                if (loadout && group == "Loadouts") RenderLoadout();
+                foreach (var field in fieldsInGroup) RenderField(field);
+            }
+            if (count == 0) Rows.Children.Add(new TextBlock { Text = "No settings match this search.", Margin = new Thickness(14), TextWrapping = TextWrapping.Wrap });
+            return;
+        }
         if (category == "Loadouts")
         {
             RenderLoadout();
@@ -312,6 +363,7 @@ public partial class MainWindow : Window
             }
             var slider = new Slider { Minimum = lower, Maximum = upper, Margin = new Thickness(0, 0, 18, 0), VerticalAlignment = VerticalAlignment.Center, IsEnabled = value != null, SmallChange = (double)f["step"]!, IsSnapToTickEnabled = true, TickFrequency = (double)f["step"]! };
             var input = new TextBox { Text = invalid.GetValueOrDefault(id) ?? Text(value), IsEnabled = value != null };
+            if (invalid.ContainsKey(id)) input.BorderBrush = Brush("#FF9696");
             AutomationProperties.SetName(input, label);
             AutomationProperties.SetAutomationId(input, id);
             AutomationProperties.SetName(slider, label + " slider");
@@ -351,7 +403,7 @@ public partial class MainWindow : Window
         }
     }
     sealed record Item(string Id, string Name);
-    void Randomize(object s, RoutedEventArgs e) => Run(() => { if (payload == null) return; var ids = Configuration.Loadout(payload) ?? ["", "", ""]; bool[] locks = [LockPrimary.IsChecked == true, LockSecondary.IsChecked == true, LockEquipment.IsChecked == true]; for (int i = 0; i < 3; i++) if (!locks[i]) { var pool = Configuration.Catalog[i == 2 ? "equipment" : "weapons"]!.AsArray().Select(n => (string)n!["id"]!).Where(id => i == 2 || id != ids[1 - i]).ToArray(); ids[i] = pool[Random.Shared.Next(pool.Length)]; } Configuration.SetLoadout(payload, ids); MarkDirty(); Categories.SelectedItem = "Loadouts"; Render(); });
+    void Randomize(object s, RoutedEventArgs e) => Run(() => { if (payload == null) return; var ids = Configuration.Loadout(payload) ?? ["", "", ""]; bool[] locks = [LockPrimary.IsChecked == true, LockSecondary.IsChecked == true, LockEquipment.IsChecked == true]; for (int i = 0; i < 3; i++) if (!locks[i]) { var pool = Configuration.Catalog[i == 2 ? "equipment" : "weapons"]!.AsArray().Select(n => (string)n!["id"]!).Where(id => i == 2 || id != ids[1 - i]).ToArray(); ids[i] = pool[Random.Shared.Next(pool.Length)]; } Configuration.SetLoadout(payload, ids); MarkDirty(); SettingsSearch.Clear(); Categories.SelectedItem = "Loadouts"; Render(); });
     void ResetOpened(object s, RoutedEventArgs e)
     {
         if (opened != null && Confirm("Reset all editor changes to the values when this mode was opened?"))
