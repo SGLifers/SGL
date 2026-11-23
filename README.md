@@ -64,7 +64,7 @@ Install the .NET 10 SDK on Windows, then run:
 ```powershell
 dotnet build src/SGL.Desktop/SGL.Desktop.csproj
 dotnet run --project tests/SGL.Tests
-./scripts/package.ps1 -Version 0.3.1
+./scripts/package.ps1 -Version 0.3.2
 ```
 
 The test executable uses temporary game-save folders and a mock game-running probe. Never point a test host at real player saves. Development UI arguments `--cloud-save <folder> --data <folder> --no-update` isolate desktop checks. Production builds retain the real process guard.

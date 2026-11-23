@@ -1,4 +1,4 @@
-param([string]$Version='0.3.1',[string]$OutputDirectory='dist',[switch]$UnsignedMetadata)
+param([string]$Version='0.3.2',[string]$OutputDirectory='dist',[switch]$UnsignedMetadata)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Use a numeric MAJOR.MINOR.PATCH version.' }
