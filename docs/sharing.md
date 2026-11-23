@@ -47,7 +47,7 @@ Choose the content, enter a title, credits and change note, then select visibili
 
 Publishing is an explicit action. Local saves, local Git history, Windows usernames, CloudSave ownership and local paths are not automatically uploaded. Map archives retain their own embedded metadata; review those files before publishing. Public profiles expose Discord ID, display name and avatar. Credits identify original map authors separately from the account uploading a file.
 
-The copied link pins the exact revision. **Settings & help → Enable Open in SGL links** registers the `sgl:` protocol for the current Windows user. A link opens a review screen; installation always requires confirmation. Keep SGL.exe in its permanent folder before enabling links. Moving the EXE requires enabling them again.
+The copied link pins the exact revision. **Shared library → Browse → Enable browser links** registers the `sgl:` protocol for the current Windows user. A link opens a review screen; installation always requires confirmation. Keep SGL.exe in its permanent folder before enabling links. Moving the EXE requires enabling them again.
 
 Cancel stops further requests; revisions that already completed remain published. Bundle assets are published before the final bundle, so an interrupted publication can leave individual map or mode items in My publications.
 

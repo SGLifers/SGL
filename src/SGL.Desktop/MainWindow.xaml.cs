@@ -527,18 +527,18 @@ public partial class MainWindow : Window
     {
         try
         {
-            UpdateStatus.Text = "Checking official releases…";
+            Status.Text = "Checking official releases…";
             var version = typeof(MainWindow).Assembly.GetName().Version!;
             var update = await Updates.Download(version, Path.Combine(dataRoot, "Updates", Guid.NewGuid().ToString("N")), Updater.PublicKey);
             if (update == null)
             {
-                UpdateStatus.Text = "SGL is up to date.";
+                Status.Text = "SGL is up to date.";
                 return;
             }
-            UpdateStatus.Text = "Verified update " + update.Value.Release.Version + " downloaded.";
+            Status.Text = "Verified update " + update.Value.Release.Version + " downloaded.";
             if (dirty || invalid.Count > 0 || libraryBusy)
             {
-                UpdateStatus.Text += " Save your draft and restart SGL to apply it.";
+                Status.Text += " Save your draft and restart SGL to apply it.";
                 return;
             }
             if (manual && !Confirm("Install the verified update and restart SGL?"))
@@ -547,6 +547,6 @@ public partial class MainWindow : Window
             dirty = false;
             Application.Current.Shutdown();
         }
-        catch (Exception error) { UpdateStatus.Text = "Update unavailable; continuing with the installed version. " + error.Message; }
+        catch (Exception error) { Status.Text = "Update unavailable; continuing with the installed version. " + error.Message; }
     }
 }

@@ -18,19 +18,28 @@ public partial class MainWindow
     string appliedLibraryTag = "", appliedLibraryCreator = "";
     bool filteringSharedItems;
     string editorShareId = Guid.NewGuid().ToString("N");
-    string LibraryRoot => !string.IsNullOrWhiteSpace((string?)Preferences()["sharingApi"]) ? (string)Preferences()["sharingApi"]! : (string?)Json.Read(Modes.Resource("library-service.json"))["apiUrl"] ?? "";
+    string LibraryRoot
+    {
+        get
+        {
+#if DEBUG
+            string? developmentService = Arg("--sharing-service") ?? (string?)Preferences()["sharingApi"];
+            if (!string.IsNullOrWhiteSpace(developmentService)) return developmentService;
+#endif
+            return (string?)Json.Read(Modes.Resource("library-service.json"))["apiUrl"] ?? "";
+        }
+    }
     LibraryState SharedState => new(Path.Combine(Path.GetDirectoryName(HistoryDirectory)!, "shared-library.json"));
     SharingSession Session(string root) => new(Path.Combine(dataRoot, "Session", "sharing.bin"), root);
     LibraryClient SharingClient()
     {
         string root = LibraryRoot;
         if (string.IsNullOrWhiteSpace(root))
-            throw new InvalidOperationException("Sharing is awaiting service deployment. Portable package export and import work now. Set the deployed HTTPS service URL in Settings when available.");
+            throw new InvalidOperationException("Sharing is not configured in this build. Portable package export and import work offline.");
         return new(root, (string?)Session(root).Load()?["token"]);
     }
     void InitializeSharing()
     {
-        LibraryServiceUrl.Text = LibraryRoot;
         RefreshSharingAccount();
         Closing += (s, e) => libraryRequest?.Cancel();
         var accountTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
@@ -437,30 +446,6 @@ public partial class MainWindow
         if (new FileInfo(dialog.FileName).Length > 130_000_000)
             throw new InvalidDataException("Package exceeds 130 MB.");
         InstallSharedPackage(SharedPackages.Read(File.ReadAllBytes(dialog.FileName)), "offline");
-    });
-    void SaveLibraryService(object sender, RoutedEventArgs e) => Run(() =>
-    {
-        if (libraryBusy)
-            throw new InvalidOperationException("Finish or cancel the sharing operation first.");
-        string value = LibraryServiceUrl.Text.Trim();
-        if (value.Length > 0)
-        {
-            using var client = new LibraryClient(value);
-            value = client.Root.AbsoluteUri;
-        }
-        if (LibraryRoot.Length > 0)
-            Session(LibraryRoot).Clear();
-        var preferences = Preferences();
-        if (value.Length > 0)
-            preferences["sharingApi"] = value;
-        else
-            preferences.Remove("sharingApi");
-        Json.Atomic(Path.Combine(dataRoot, "settings.json"), preferences.ToJsonString());
-        sharedItems.Clear();
-        FilterSharedItems();
-        RefreshSharingAccount();
-        if (LibraryRoot.Length > 0)
-            LibraryStatus.Text = "Sharing service saved. Sign in to publish; local editing is unchanged.";
     });
     void EnableSharedLinks(object sender, RoutedEventArgs e) => Run(() => { SharedLinkActivation.RegisterProtocol(); LibraryStatus.Text = "Open in SGL links are enabled for this Windows account."; });
     sealed record LocalShareSource(string Id, string Name);

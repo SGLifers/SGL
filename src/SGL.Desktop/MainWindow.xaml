@@ -257,6 +257,7 @@
                                     <StackPanel>
                                         <TextBlock Text="Open a shared link" Margin="0,0,0,6" />
                                         <DockPanel><Button DockPanel.Dock="Right" Content="Open" Click="LibraryOpenLink" Margin="8,0,0,6" /><TextBox x:Name="LibraryLink" ToolTip="Paste an SGL share link or item identity" /></DockPanel>
+                                        <Button Content="Enable browser links" Click="EnableSharedLinks" HorizontalAlignment="Left" Margin="0,6,8,6" />
                                         <TextBlock x:Name="LibraryDetails" Text="Select a shared item." TextWrapping="Wrap" Margin="0,16,0,12" />
                                         <Border x:Name="LibraryMapPreviewPanel" Visibility="Collapsed" Background="#10152B" Margin="0,0,0,14">
                                             <Grid Height="230">
@@ -358,8 +359,6 @@
             </TabItem>
             <TabItem Header="Settings &amp; help">
                 <StackPanel Margin="24">
-                    <TextBlock Text="SGL · community tools" FontSize="24" Margin="0,0,0,16" />
-                    <TextBlock Text="Gamemode editing and Git history work offline. Close Splitgate before applying configurations. Changes made in-game are captured on refresh or the next SGL launch." TextWrapping="Wrap" Margin="0,0,0,16" />
                     <CheckBox x:Name="AutoUpdate" Content="Automatically check, download and apply verified releases at startup" Click="UpdatePreference" />
                     <WrapPanel Margin="0,12,0,12">
                         <Button Content="Check for updates" Click="CheckUpdates" />
@@ -368,12 +367,6 @@
                         <Button Content="Open SGL data folder" Click="OpenData" />
                         <Button Content="Reset pane widths" Click="ResetPaneWidths" />
                     </WrapPanel>
-                    <TextBlock x:Name="UpdateStatus" TextWrapping="Wrap" />
-                    <TextBlock Text="Sharing service" Margin="0,20,0,6" />
-                    <DockPanel><Button DockPanel.Dock="Right" Content="Save service URL" Click="SaveLibraryService" Margin="8,0,0,6" /><TextBox x:Name="LibraryServiceUrl" ToolTip="HTTPS service URL from the SGL sharing deployment" /></DockPanel>
-                    <Button Content="Enable Open in SGL links" Click="EnableSharedLinks" HorizontalAlignment="Left" Margin="0,8,8,6" />
-                    <TextBlock Margin="0,20,0,0" TextWrapping="Wrap" Text="Unsigned releases may require review in Windows Security → Virus &amp; threat protection → Protection history. Only allow the official release you have verified. SGL never changes security settings." />
-                    <TextBlock Margin="0,20,0,0" Foreground="#B9B7D6" Text="Drag the vertical dividers to resize lists and editor panes. SGL remembers your widths." />
                 </StackPanel>
             </TabItem>
         </TabControl>
