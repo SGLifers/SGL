@@ -14,6 +14,8 @@ public partial class MainWindow
     CancellationTokenSource? libraryRequest;
     readonly List<LibraryItem> sharedItems = [];
     string? libraryCursor, revisionsCursor;
+    string appliedLibraryTag = "", appliedLibraryCreator = "";
+    bool filteringSharedItems;
     string editorShareId = Guid.NewGuid().ToString("N");
     string LibraryRoot => !string.IsNullOrWhiteSpace((string?)Preferences()["sharingApi"]) ? (string)Preferences()["sharingApi"]! : (string?)Json.Read(Modes.Resource("library-service.json"))["apiUrl"] ?? "";
     LibraryState SharedState => new(Path.Combine(Path.GetDirectoryName(HistoryDirectory)!, "shared-library.json"));
@@ -48,6 +50,7 @@ public partial class MainWindow
         libraryBusy = true;
         LibraryItems.IsEnabled = false;
         LibraryMine.IsEnabled = false;
+        LibraryTag.IsEnabled = LibraryCreator.IsEnabled = ApplyLibraryFiltersButton.IsEnabled = ClearLibraryFiltersButton.IsEnabled = false;
         using var request = new CancellationTokenSource();
         libraryRequest = request;
         try
@@ -63,7 +66,7 @@ public partial class MainWindow
             LibraryStatus.Text = error.Message;
         }
         catch (Exception error) { LibraryStatus.Text = error.Message; Report(error); }
-        finally { libraryRequest = null; libraryBusy = false; LibraryItems.IsEnabled = true; LibraryMine.IsEnabled = true; }
+        finally { libraryRequest = null; libraryBusy = false; LibraryItems.IsEnabled = true; LibraryMine.IsEnabled = true; LibraryTag.IsEnabled = LibraryCreator.IsEnabled = ApplyLibraryFiltersButton.IsEnabled = ClearLibraryFiltersButton.IsEnabled = true; }
     }
     async void LibrarySignIn(object sender, RoutedEventArgs e) => await LibraryWork(async cancel =>
     {
@@ -101,17 +104,41 @@ public partial class MainWindow
         LibraryStatus.Text = "Signed out.";
     });
     void LibraryCancel(object sender, RoutedEventArgs e) => libraryRequest?.Cancel();
-    async void LibraryRefresh(object sender, RoutedEventArgs e) => await LibraryWork(async cancel =>
+    async void LibraryRefresh(object sender, RoutedEventArgs e) => await RefreshSharedLibrary();
+    async Task RefreshSharedLibrary() => await LibraryWork(async cancel =>
     {
         using var client = SharingClient();
+        appliedLibraryTag = MapTags.Normalize([LibraryTag.Text]).FirstOrDefault() ?? "";
+        appliedLibraryCreator = LibraryCreator.Text.Trim();
         LibraryStatus.Text = "Loading shared items…";
-        var page = await client.List(LibraryMine.IsChecked == true, cancel: cancel);
         sharedItems.Clear();
+        libraryCursor = null;
+        FilterSharedItems();
+        var page = await ReadFilteredPage(client, null, cancel);
         sharedItems.AddRange(page.Items);
         libraryCursor = page.Cursor;
         FilterSharedItems();
-        LibraryStatus.Text = sharedItems.Count + " shared items loaded. Use Load more for additional results.";
+        LibraryStatus.Text = sharedItems.Count + " matching items loaded." + (libraryCursor != null ? " Use Load more to continue searching." : " All results loaded.");
     });
+    async Task<(LibraryItem[] Items, string? Cursor)> ReadFilteredPage(LibraryClient client, string? cursor, CancellationToken cancel)
+    {
+        for (int i = 0; ; i++)
+        {
+            var page = await client.List(LibraryMine.IsChecked == true, cursor: cursor, cancel: cancel, tag: appliedLibraryTag, creator: appliedLibraryCreator);
+            var matches = page.Items.Where(item => item.Matches("", appliedLibraryTag, appliedLibraryCreator)).ToArray();
+            if (matches.Length > 0 || page.Cursor == null || i == 4) return (matches, page.Cursor);
+            cursor = page.Cursor;
+        }
+    }
+    async void LibraryClearFilters(object sender, RoutedEventArgs e)
+    {
+        LibraryTag.Clear(); LibraryCreator.Clear(); LibrarySearch.Clear();
+        await RefreshSharedLibrary();
+    }
+    void LibraryFilterKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter) { e.Handled = true; LibraryRefresh(sender, e); }
+    }
     async void LibraryMore(object sender, RoutedEventArgs e) => await LibraryWork(async cancel =>
     {
         if (libraryCursor == null)
@@ -120,20 +147,29 @@ public partial class MainWindow
             return;
         }
         using var client = SharingClient();
-        var page = await client.List(LibraryMine.IsChecked == true, cursor: libraryCursor, cancel: cancel);
+        var page = await ReadFilteredPage(client, libraryCursor, cancel);
         sharedItems.AddRange(page.Items);
         libraryCursor = page.Cursor;
         FilterSharedItems();
+        LibraryStatus.Text = sharedItems.Count + " matching items loaded." + (libraryCursor != null ? " Use Load more to continue searching." : " All results loaded.");
     });
     void LibrarySearchChanged(object sender, TextChangedEventArgs e) => FilterSharedItems();
     void FilterSharedItems()
     {
-        if (LibraryItems != null)
-            LibraryItems.ItemsSource = sharedItems.Where(i => i.Label.Contains(LibrarySearch.Text, StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (LibraryItems == null || LibrarySearch == null) return;
+        string? selected = (LibraryItems.SelectedItem as LibraryItem)?.Id;
+        filteringSharedItems = true;
+        try
+        {
+            var matches = sharedItems.Where(i => i.Matches(LibrarySearch.Text.Trim(), appliedLibraryTag, appliedLibraryCreator)).DistinctBy(i => i.Id).ToArray();
+            LibraryItems.ItemsSource = matches;
+            LibraryItems.SelectedItem = matches.FirstOrDefault(i => i.Id == selected);
+        }
+        finally { filteringSharedItems = false; }
     }
     async void LibraryItemSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (LibraryItems.SelectedItem is LibraryItem item && !libraryBusy)
+        if (LibraryItems.SelectedItem is LibraryItem item && !libraryBusy && !filteringSharedItems)
             await LibraryWork(cancel => LoadSharedItem(item, null, cancel));
     }
     async Task LoadSharedItem(LibraryItem item, string? pinned, CancellationToken cancel)
@@ -149,6 +185,7 @@ public partial class MainWindow
         }
         revisionsCursor = revisions.Cursor;
         LibraryDetails.Text = $"{item.Title}\n{item.Kind} · Published by {item.OwnerName}\nDiscord ID: {item.Json["owner"]?["discordId"]}\n{item.Description}\n\nOriginal creator credits: {item.Json["credits"]}\nVisibility: {item.Json["visibility"]}";
+        if (item.Tags.Length > 0) LibraryDetails.Text += "\nLatest tags: " + item.TagSummary;
         if (item.Json["forkOf"] is JsonObject fork)
             LibraryDetails.Text += "\nBased on " + fork["itemId"] + ", revision " + fork["revisionId"] + ". Original credits: " + fork["credits"];
         LibraryRevisions.ItemsSource = choices;
@@ -182,6 +219,8 @@ public partial class MainWindow
         using var client = SharingClient();
         var parsed = LibraryClient.ParseLink(link, client.Root);
         var item = await client.Item(parsed.ItemId, cancel);
+        appliedLibraryTag = ""; appliedLibraryCreator = ""; libraryCursor = null;
+        LibraryTag.Clear(); LibraryCreator.Clear(); LibrarySearch.Clear();
         if (sharedItems.All(i => i.Id != item.Id))
             sharedItems.Insert(0, item);
         FilterSharedItems();
@@ -229,12 +268,20 @@ public partial class MainWindow
             prompt += "\nCreator attribution in this offline file is supplied by the file and is not authenticated.";
         if (!Confirm(prompt))
             return;
+        _ = TagStore.Read();
         history?.Capture(snapshot, "Checkpoint before shared installation");
         var result = store.InstallShared(snapshot, package, SharedState, origin, copy);
         if (result.BackupDirectory.Length > 0)
             lastBackup = result.BackupDirectory;
         try
         {
+            foreach (var record in result.Records.Where(r => (string?)r["kind"] == "map"))
+            {
+                var previous = SharedState.Installed(origin, (string)record["itemId"]!);
+                string localId = (string)record["localFileId"]!;
+                var baseline = (string?)previous?["localFileId"] == localId ? SharedTags.Read(previous!["attribution"]!.AsObject()) : null;
+                TagStore.ImportShared(localId, SharedTags.Read(record["attribution"]!.AsObject()), baseline);
+            }
             SharedState.RecordInstall(origin, result.Records);
             if (result.Records.Count == 2)
             {
@@ -278,7 +325,11 @@ public partial class MainWindow
     void SharedRevisionSelected(object sender, SelectionChangedEventArgs e)
     {
         if (LibraryRevisionAttribution != null && LibraryRevisions.SelectedItem is LibraryRevision revision)
+        {
             LibraryRevisionAttribution.Text = $"Edited by {revision.Json["actor"]?["displayName"]} · Discord ID {revision.Json["actor"]?["discordId"]}\n{revision.Json["createdAt"]}";
+            var tags = SharedTags.ReadNode(revision.Json["metadata"]?["tags"]);
+            LibraryRevisionAttribution.Text += "\nRevision tags: " + (tags.Length > 0 ? string.Join(" · ", tags) : "None");
+        }
     }
     void LibraryCreatorProfile(object sender, RoutedEventArgs e) => Run(() =>
     {
@@ -297,6 +348,9 @@ public partial class MainWindow
         var a = await client.Send($"items/{selected.Item.Id}/revisions/{other.Id}", cancel: cancel);
         var b = await client.Send($"items/{selected.Item.Id}/revisions/{selected.Revision.Id}", cancel: cancel);
         var lines = new List<string> { other.Label + " → " + selected.Revision.Label };
+        var oldTags = SharedTags.ReadNode(a["revision"]?["metadata"]?["tags"]);
+        var newTags = SharedTags.ReadNode(b["revision"]?["metadata"]?["tags"]);
+        if (!SharedTags.Equal(oldTags, newTags)) lines.Add("Tags: " + string.Join(", ", oldTags) + " → " + string.Join(", ", newTags));
         static JsonObject? Find(JsonObject descriptor, string kind) => (string?)descriptor["item"]?["kind"] == kind ? descriptor : descriptor["dependencies"]?.AsArray().OfType<JsonObject>().FirstOrDefault(d => (string?)d["item"]?["kind"] == kind);
         var ma = Find(a, "mode");
         var mb = Find(b, "mode");
@@ -377,6 +431,7 @@ public partial class MainWindow
         PublishMode.SelectedItem = modes.FirstOrDefault(m => m.Id == mode) ?? modes.FirstOrDefault();
         PublishMap.ItemsSource = snapshot?.Maps ?? [];
         PublishMap.SelectedItem = snapshot?.Maps.FirstOrDefault(m => m.Id == map) ?? snapshot?.Maps.FirstOrDefault();
+        UpdatePublishMapTags();
         updatingShareSources = false;
         PublishMode.IsEnabled = ShareKind is "mode" or "bundle";
         PublishMap.IsEnabled = ShareKind is "map" or "bundle";
@@ -407,6 +462,7 @@ public partial class MainWindow
     {
         if (updatingShareSources || PublishTitle == null || PublishKind?.SelectedItem == null)
             return;
+        UpdatePublishMapTags();
         if (ShareKind == "mode" && PublishMode.SelectedItem is LocalShareSource mode)
             PublishTitle.Text = mode.Id == "__editor__" && payload != null ? Configuration.Name(payload) : mode.Name;
         if (ShareKind == "map" && PublishMap.SelectedItem is SavedMap map)
@@ -417,5 +473,10 @@ public partial class MainWindow
         }
         if (ShareKind == "bundle" && (PublishTitle.Text.Length == 0 || PublishTitle.Text.StartsWith("Current editor:")))
             PublishTitle.Text = "New bundle";
+    }
+    void UpdatePublishMapTags()
+    {
+        if (PublishMapTags != null)
+            PublishMapTags.Text = PublishMap.SelectedItem is SavedMap map ? "Tags included with this map: " + (TagSummary(map.Id) is { Length: > 0 } tags ? tags : "None. Add tags from the Maps tab.") : "Choose a local map to include its tags.";
     }
 }

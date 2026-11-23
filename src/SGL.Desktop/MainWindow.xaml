@@ -217,9 +217,14 @@
                                         <Button Content="Refresh" Click="LibraryRefresh" />
                                         <CheckBox x:Name="LibraryMine" Content="My publications" Click="LibraryRefresh" />
                                     </WrapPanel>
-                                    <TextBox x:Name="LibrarySearch" Grid.Row="1" TextChanged="LibrarySearchChanged" ToolTip="Filter loaded items by title or creator" Margin="0,0,0,8" />
+                                    <StackPanel Grid.Row="1" Margin="0,0,0,8">
+                                        <TextBlock Text="Tag (exact label)" FontSize="12" Foreground="#B9B7D6" /><TextBox x:Name="LibraryTag" MaxLength="40" KeyDown="LibraryFilterKeyDown" Margin="0,4,0,8" />
+                                        <TextBlock Text="Publisher name or Discord ID" FontSize="12" Foreground="#B9B7D6" /><TextBox x:Name="LibraryCreator" MaxLength="100" KeyDown="LibraryFilterKeyDown" Margin="0,4,0,8" />
+                                        <WrapPanel><Button x:Name="ApplyLibraryFiltersButton" Content="Apply filters" Click="LibraryRefresh" /><Button x:Name="ClearLibraryFiltersButton" Content="Clear filters" Click="LibraryClearFilters" /></WrapPanel>
+                                        <TextBlock Text="Search loaded results" FontSize="12" Foreground="#B9B7D6" /><TextBox x:Name="LibrarySearch" TextChanged="LibrarySearchChanged" ToolTip="Search loaded items by title, description, creator or tags" Margin="0,4,0,0" />
+                                    </StackPanel>
                                     <ListBox x:Name="LibraryItems" Grid.Row="2" SelectionChanged="LibraryItemSelected" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                        <ListBox.ItemTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding Title}" TextWrapping="Wrap" /><TextBlock Text="{Binding Label}" Foreground="#B9B7D6" FontSize="12" TextWrapping="Wrap" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
+                                        <ListBox.ItemTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding Title}" TextWrapping="Wrap" /><TextBlock Text="{Binding Label}" Foreground="#B9B7D6" FontSize="12" TextWrapping="Wrap" /><TextBlock Text="{Binding TagSummary}" Foreground="{StaticResource Gold}" FontSize="12" TextWrapping="Wrap" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
                                     </ListBox>
                                     <WrapPanel Grid.Row="3" Margin="0,8,0,0"><Button Content="Load more" Click="LibraryMore" /><Button Content="Import package" Click="LibraryImportPackage" /></WrapPanel>
                                 </Grid>
@@ -266,6 +271,7 @@
                                             </Style>
                                         </StackPanel.Style>
                                         <TextBlock Text="Local map" /><ComboBox x:Name="PublishMap" DisplayMemberPath="Name" Margin="0,5,0,10" SelectionChanged="PublishSourceChanged" />
+                                        <TextBlock x:Name="PublishMapTags" Text="Map tags are included when publishing or exporting." TextWrapping="Wrap" Foreground="{StaticResource Gold}" Margin="0,0,0,10" />
                                     </StackPanel>
                                     <TextBlock Text="Local gamemode" /><ComboBox x:Name="PublishMode" DisplayMemberPath="Name" SelectedValuePath="Id" Margin="0,5,0,10" SelectionChanged="PublishSourceChanged" />
                                     <TextBlock Text="Publication" /><ComboBox x:Name="PublishAction" SelectedIndex="0" Margin="0,5,0,10"><ComboBoxItem Content="New item" Tag="new" /><ComboBoxItem Content="New revision of selected shared item" Tag="update" /><ComboBoxItem Content="My own version of selected shared item" Tag="fork" /></ComboBox>

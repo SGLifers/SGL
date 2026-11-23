@@ -3,10 +3,23 @@ import hashlib
 import io
 import json
 import re
+import unicodedata
 import zipfile
 
 MAX_MAP = 128_000_000
 MAX_MODE = 1_048_576
+
+
+def tags(value):
+    require(isinstance(value, list) and len(value) <= 20, "Use at most 20 tags.")
+    normalized = {}
+    for entry in value:
+        require(isinstance(entry, str), "Tags must be text.")
+        require(not any(unicodedata.category(c) == "Cs" for c in entry), "Tags must contain valid Unicode.")
+        label = " ".join(unicodedata.normalize("NFC", entry).split())
+        require(0 < len(label.encode("utf-16-le")) // 2 <= 40 and "," not in label and not any(unicodedata.category(c) == "Cc" for c in label), "Use tags of 1–40 characters without commas or control characters.")
+        normalized.setdefault(label.casefold(), label)
+    return sorted(normalized.values(), key=str.casefold)
 VARIANTS = {
     "GV_KOTH_Team_Default", "GV_Deathmatch_Team_SWAT_Aeros",
     "GV_Deathmatch_Team_1round_Default", "GV_DOM_Team_1round_Default",

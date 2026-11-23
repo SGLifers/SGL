@@ -13,6 +13,18 @@ SGL validates the package, makes a complete game-save backup and registers both 
 
 Offline files preserve creator credits, but their claimed account identities are not authenticated. Imported files never acquire the service's verified attribution status. Packages contain map/configuration data, not executable installers.
 
+## Map tags and discovery
+
+Shareable tags and the tag/publisher filters require the **0.3.3 preview or later**. Version 0.3.2 keeps tags local.
+
+Select a map in **Maps → Edit local tags…** and enter comma-separated labels such as **TDM, 1v1, Friday event**. A map supports up to 20 tags of 40 characters each. The Publish tab previews the tags that will be included.
+
+Tags travel with online map publications, map/gamemode bundles and portable packages. Each published revision retains its own tags; tag-only edits create a new revision and reuse the existing map file when its contents are unchanged. Existing published items have no tags until their owner publishes a tagged revision. Older clients that omit tags preserve the current labels during updates.
+
+Installing a map imports its pinned revision's tags. Later installations update tags that the host has left unchanged. If the host has added or removed tags locally, SGL preserves that complete personal tag set. A separate map copy receives the incoming tags. Tag edits are shared only when the host explicitly publishes or exports the map again.
+
+In **Shared library → Browse**, enter an exact **Tag** and/or a **Publisher name or Discord ID**, then choose **Apply filters** or press Enter. Matching ignores case; creator filtering uses partial publisher names or IDs, not free-form original-author credits. Filters apply to public items, or your own items when **My publications** is checked, and continue through **Load more**. Empty result pages do not mean the remaining pages have no matches. **Search loaded results** narrows the downloaded results by title, description, publisher or tags. **Clear filters** starts a fresh listing.
+
 ## Publish online
 
 Once the service is configured, sign in using **Sign in with Discord**. SGL requests only the Discord `identify` scope. It does not join servers, read messages, or post to Discord.

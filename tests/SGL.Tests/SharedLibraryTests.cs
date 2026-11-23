@@ -53,6 +53,9 @@ static class SharedLibraryTests
             ["download"] = new JsonObject { ["url"] = "https://sgl-content.s3.us-west-2.amazonaws.com/" + kind, ["sha256"] = Json.Hash(data), ["size"] = data.Length }
         };
         var mapDescriptor = Descriptor(mapId, "map", mapRevision, map);
+        mapDescriptor["item"]!["tags"] = SharedTags.Array(["TDM", "Friday event"]);
+        mapDescriptor["item"]!["owner"]!["discordId"] = "123456789";
+        mapDescriptor["revision"]!["metadata"] = new JsonObject { ["tags"] = SharedTags.Array(["TDM", "Friday event"]) };
         var modeDescriptor = Descriptor(modeId, "mode", modeRevision, mode);
         var bundleDescriptor = new JsonObject
         {
@@ -76,6 +79,31 @@ static class SharedLibraryTests
         check(!portable.FromService && portable.Entries.Count == 2, "Portable file incorrectly claims authenticated attribution");
         check(portable.BundleId == bundleId && portable.BundleRevisionId == bundleRevision, "Portable bundle lost identity");
         check(portable.Entries.Single(e => e.Kind == "mode").Data.SequenceEqual(mode), "Portable mode payload changed");
+        var mapEntry = portable.Entries.Single(e => e.Kind == "map");
+        check(SharedTags.Equal(SharedTags.Read(mapEntry.Attribution), ["TDM", "Friday event"]), "Portable map lost revision tags");
+        var pinnedAttribution = Configuration.Clone(mapEntry.Attribution);
+        pinnedAttribution["item"]!["tags"] = SharedTags.Array(["KOTH"]);
+        check(SharedTags.Equal(SharedTags.Read(pinnedAttribution), ["TDM", "Friday event"]), "Latest tags replaced pinned revision tags");
+        pinnedAttribution["tags"] = SharedTags.Array(["1v1"]);
+        check(SharedTags.Read(pinnedAttribution).Single() == "1v1", "Locally exported tags did not override original attribution");
+        check(SharedTags.PublicationHash(map, ["TDM"]) != SharedTags.PublicationHash(map, ["KOTH"]), "Tag-only edits reused the old publication identity");
+        check(SharedTags.PublicationHash(map, ["TDM", "Friday event"]) == SharedTags.PublicationHash(map, ["Friday event", "TDM"]), "Tag ordering changed publication identity");
+        var tagged = new LibraryItem(mapDescriptor["item"]!.AsObject());
+        check(tagged.Matches("Friday", "tdm", "HOST") && tagged.Matches("", "TDM", "123456789"), "Shared tag search or publisher filters failed");
+        check(!tagged.Matches("", "TD") && !tagged.Matches("", "KOTH") && !tagged.Matches("", "TDM", "another"), "Shared filters included unrelated tags or publishers");
+        var importedTags = new MapTags(Path.Combine(work, "tag-import", "map-tags.json"));
+        check(importedTags.ImportShared("map", SharedTags.Read(mapEntry.Attribution), null), "First installation did not import tags");
+        check(importedTags.ImportShared("map", ["KOTH"], ["TDM", "Friday event"]) && importedTags.Read()["map"].Single() == "KOTH", "Clean revision update did not replace shared tags");
+        importedTags.Set("map", ["KOTH", "My event"]);
+        check(!importedTags.ImportShared("map", ["SWAT"], ["KOTH"]) && importedTags.Read()["map"].Contains("My event"), "Revision update discarded personal tags");
+        importedTags.Set("map", []);
+        check(!importedTags.ImportShared("map", ["SWAT"], ["KOTH"]) && !importedTags.Read().ContainsKey("map"), "Revision update restored personally removed tags");
+        using (var filtered = new LibraryClient("https://sharing.example.test", handler: new FilterHttp(mapDescriptor["item"]!.AsObject(), check)))
+        {
+            var page = await filtered.List(false, tag: "Friday event", creator: "Host & friend");
+            check(page.Cursor == "next/page" && page.Items.Single().Tags.Contains("TDM"), "Filtered result lost tags or cursor");
+            await filtered.List(false, cursor: page.Cursor, tag: "Friday event", creator: "Host & friend");
+        }
         byte[] RewritePackage(Action<JsonObject> change)
         {
             using var bytes = new MemoryStream();
@@ -96,6 +124,7 @@ static class SharedLibraryTests
         }
         reject(() => SharedPackages.Read(RewritePackage(m => m["entries"]![0]!["sha256"] = new string('0', 64))), "Portable checksum tampering was accepted");
         reject(() => SharedPackages.Read(RewritePackage(m => m["entries"]![0]!["path"] = "../outside.bin")), "Portable archive traversal was accepted");
+        reject(() => SharedPackages.Read(RewritePackage(m => m["entries"]![0]!["attribution"]!["tags"] = new JsonArray(123))), "Portable package accepted malformed tags");
         using (var retried = new LibraryClient("https://sharing.example.test", handler: new RetryHttp(check)))
             check((bool)(await retried.Send("items", new JsonObject { ["requestId"] = Guid.NewGuid().ToString("N") }))["ok"]!, "Publishing did not recover a transient response");
         bool originRejected = false;
@@ -184,6 +213,17 @@ static class SharedLibraryTests
         state.RecordPublication("service-user", "mode", originalId, modeId, modeRevision, Json.Hash(mode));
         check((string?)new LibraryState(Path.Combine(work, "SharedProfile", "library.json")).Published("service-user", "mode", originalId)?["itemId"] == modeId, "Publication identity did not persist");
         check(state.Published("another-user", "mode", originalId) == null, "Publication ownership crossed user scope");
+    }
+    sealed class FilterHttp(JsonObject item, Action<bool, string> check) : HttpMessageHandler
+    {
+        int requests;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancel)
+        {
+            var query = request.RequestUri!.Query.TrimStart('?').Split('&').Select(p => p.Split('=', 2)).ToDictionary(p => p[0], p => Uri.UnescapeDataString(p[1]));
+            check(query["tag"] == "Friday event" && query["creator"] == "Host & friend", "API filters were lost or incorrectly URL encoded");
+            if (requests++ > 0) check(query["cursor"] == "next/page", "Pagination dropped its cursor or filters");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(new JsonObject { ["items"] = new JsonArray(item.DeepClone()), ["cursor"] = "next/page" }.ToJsonString()) });
+        }
     }
     sealed class RetryHttp(Action<bool, string> check) : HttpMessageHandler
     {

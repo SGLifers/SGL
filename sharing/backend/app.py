@@ -13,7 +13,7 @@ import urllib.request
 import uuid
 from datetime import datetime, timezone
 
-from validation import MAX_MAP, Problem, digest, identity, json_bytes, map_archive, mode, require, text
+from validation import MAX_MAP, Problem, digest, identity, json_bytes, map_archive, mode, require, tags, text
 
 
 def challenge(verifier):
@@ -127,6 +127,7 @@ class Service:
         owner = self.repo.get("USER#" + item["ownerId"])
         result["owner"] = self.public_user(owner) if owner else {"id": item["ownerId"], "displayName": "Former member"}
         result["shareUrl"] = self.base + "/share/" + item["id"]
+        result["tags"] = item.get("tags", [])
         return result
 
     def public_revision(self, revision):
@@ -204,8 +205,11 @@ class Service:
         self.repo.save_blob(key, data, content_type)
         return {"sha256": sha, "size": len(data), "key": key}
 
-    def prepare_content(self, kind, content, actor, visibility):
+    def prepare_content(self, kind, content, actor, visibility, old=None):
         require(isinstance(content, dict), "Invalid item content.")
+        if "reuseRevisionId" in content:
+            require(kind == "map" and old is not None and old["ownerId"] == actor["id"] and set(content) == {"reuseRevisionId"}, "Only an owner can reuse a map revision from the same item.", 403)
+            return self.revision(old, content["reuseRevisionId"])["content"].copy()
         if kind == "mode":
             return self.blob(mode(content.get("payload")), "mode", ".json", "application/json")
         if kind == "map":
@@ -234,6 +238,7 @@ class Service:
 
     def publish(self, body, actor, item_id=None):
         request_id = identity(body.get("requestId"))
+        validated_tags = tags(body["tags"]) if "tags" in body else None
         request_key = "REQUEST#" + actor["id"] + "#" + request_id
         request_hash = digest(json_bytes({"itemId": item_id, "body": body}))
         previous = self.repo.get(request_key)
@@ -253,6 +258,7 @@ class Service:
         description = text(body.get("description", ""), "description", 2000, empty=True)
         note = text(body.get("changeNote", "Initial publication"), "change note", 1000)
         credits = text(body.get("credits", ""), "creator credits", 1000, empty=True)
+        tag_values = validated_tags if "tags" in body else old.get("tags", []) if old else None
         source = body.get("source", old.get("source") if old else None)
         if source is not None:
             require(isinstance(source, str) and source.startswith("https://") and len(source) <= 1000 and not any(ord(c) < 32 for c in source), "Invalid source URL.")
@@ -263,11 +269,23 @@ class Service:
             parent_revision = self.revision(parent, fork.get("revisionId"))
             require(parent["kind"] == kind, "Original item has a different content type.")
             fork = {"itemId": parent["id"], "revisionId": fork["revisionId"], "ownerId": parent["ownerId"], "credits": parent_revision.get("metadata", {}).get("credits", parent["credits"])}
-        content = self.prepare_content(kind, body.get("content"), actor, visibility)
+            if tag_values is None:
+                tag_values = parent_revision.get("metadata", {}).get("tags", [])
+        # Validate explicit tags before accepting/uploading content. Missing tags
+        # on older clients preserve the current revision's labels.
+        if tag_values is not None:
+            tag_values = tags(tag_values)
+        content = self.prepare_content(kind, body.get("content"), actor, visibility, old)
+        if tag_values is None and kind == "bundle":
+            map_ref = content["map"]
+            map_item = self.item(map_ref["itemId"], actor)
+            tag_values = self.revision(map_item, map_ref["revisionId"]).get("metadata", {}).get("tags", [])
+        tag_values = tags(tag_values if tag_values is not None else [])
         stamp, item_id, revision_id = self.stamp(), item_id or uuid.uuid4().hex, uuid.uuid4().hex
         item = {"pk": "ITEM#" + item_id, "sk": "META", "id": item_id, "kind": kind, "title": title, "description": description, "visibility": visibility, "credits": credits, "source": source, "forkOf": fork, "ownerId": actor["id"], "latestRevisionId": revision_id, "revisionNumber": old["revisionNumber"] + 1 if old else 1, "createdAt": old["createdAt"] if old else stamp, "updatedAt": stamp, "listPk": "PUBLIC" if visibility == "public" else "HIDDEN", "listSk": stamp + "#" + item_id, "ownerPk": "USER#" + actor["id"], "ownerSk": stamp + "#" + item_id}
         revision = {"pk": "ITEM#" + item_id, "sk": "REV#" + revision_id, "id": revision_id, "itemId": item_id, "number": item["revisionNumber"], "parentRevisionId": old["latestRevisionId"] if old else None, "actorId": actor["id"], "createdAt": stamp, "changeNote": note, "content": content, "listPk": "REVISIONS#" + item_id, "listSk": stamp + "#" + revision_id}
-        revision["metadata"] = {key: item[key] for key in ("title", "description", "credits", "source", "forkOf")}
+        item["tags"] = tag_values
+        revision["metadata"] = {key: item[key] for key in ("title", "description", "credits", "source", "forkOf", "tags")}
         request = {"pk": request_key, "sk": "META", "itemId": item_id, "revisionId": revision_id, "requestHash": request_hash, "expiresAt": self.now() + 7 * 86_400}
         try:
             self.repo.publish(item, revision, old["latestRevisionId"] if old else None, request)
@@ -281,6 +299,7 @@ class Service:
     def download(self, item, revision, actor):
         result = {"item": self.public_item(item), "revision": self.public_revision(revision)}
         result["item"].update(revision.get("metadata", {}))
+        result["item"]["tags"] = revision.get("metadata", {}).get("tags", [])
         if item["kind"] == "bundle":
             result["dependencies"] = []
             for ref in revision["content"].values():
@@ -294,7 +313,7 @@ class Service:
     def dispatch(self, method, path, query, headers, body, ip="unknown"):
         if path == "/health" and method == "GET":
             config = self.configuration()
-            return {"service": "SGL sharing", "version": "1", "authConfigured": bool(config.get("clientId") and config.get("clientSecret"))}
+            return {"service": "SGL sharing", "version": "1", "authConfigured": bool(config.get("clientId") and config.get("clientSecret")), "features": ["mapTags", "creatorFilter", "reuseMapRevision"]}
         if path == "/auth/start" and method == "POST": return self.start_auth(body, ip)
         if path == "/auth/poll" and method == "POST": return self.poll_auth(body)
         if path == "/auth/callback" and method == "GET": return self.callback(query)
@@ -310,13 +329,21 @@ class Service:
             records, cursor = self.repo.listing("USER#" + actor["id"] if own else "PUBLIC", query.get("cursor"), owner=own)
             kind = query.get("kind")
             require(kind in (None, "map", "mode", "bundle"), "Invalid library filter.")
+            tag = tags([query["tag"]])[0].casefold() if query.get("tag") else None
+            creator = text(query["creator"], "creator filter", 100).casefold() if query.get("creator") else None
             # GSIs are eventually consistent. Recheck current visibility with a
             # strong base-table read before exposing any listing metadata.
             visible = []
             for record in records:
                 current = self.repo.get("ITEM#" + record["id"])
                 if current and (current["ownerId"] == actor["id"] if own else current["visibility"] == "public") and (not kind or current["kind"] == kind):
-                    visible.append(self.public_item(current))
+                    entry = self.public_item(current)
+                    owner = entry["owner"]
+                    if tag and not any(label.casefold() == tag for label in entry["tags"]):
+                        continue
+                    if creator and not any(creator in str(value or "").casefold() for value in (entry["ownerId"], owner.get("displayName"), owner.get("discordId"))):
+                        continue
+                    visible.append(entry)
             return {"items": visible, "cursor": cursor}
         if path == "/uploads" and method == "POST": return self.upload(body, self.actor(headers, required=True))
         if path == "/items" and method == "POST": return self.publish(body, self.actor(headers, required=True))
@@ -350,15 +377,17 @@ class Service:
             return f'<!doctype html><meta charset="utf-8"><title>SGL shared content</title><h1>Open this item in SGL</h1><p>Sign in there to check whether your account has access.</p><p><a href="{link}">Open in SGL</a></p><p><a href="https://sglifers.github.io/SGL/">Install SGL</a></p>'
         revision = self.revision(item, revision_id or item["latestRevisionId"])
         item = {**item, **revision.get("metadata", {})}
+        item["tags"] = revision.get("metadata", {}).get("tags", [])
         owner = self.public_item(item)["owner"]["displayName"]
         title, description = html.escape(item["title"]), html.escape(item["description"] or revision["changeNote"])
         url = self.base + "/share/" + item_id + "?revision=" + revision["id"]
         revision_link = "sgl://library/install?" + urllib.parse.urlencode({"item": item_id, "revision": revision["id"]})
         preview = ""
+        tag_html = "<p>Tags: " + " · ".join(html.escape(label) for label in item["tags"]) + "</p>" if item["tags"] else ""
         if item["kind"] == "map" and revision["content"].get("preview"):
             image = html.escape(self.repo.download_url(revision["content"]["preview"]["key"]), quote=True)
             preview = f'<meta property="og:image" content="{image}"><img src="{image}" alt="Map preview">'
-        return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · SGL</title><meta property="og:title" content="{title}"><meta property="og:description" content="{description}"><meta property="og:url" content="{html.escape(url, quote=True)}"><style>body{{background:#10152b;color:#f5f7ff;font:17px system-ui;max-width:760px;margin:60px auto;padding:24px}}a{{color:#f3be4f}}img{{max-width:100%;border-radius:8px}}.button{{display:inline-block;background:#f3be4f;color:#171027;padding:12px 20px;border-radius:6px;text-decoration:none}}small{{color:#b9b7d6}}</style><h1>{title}</h1><p>{description}</p>{preview}<p>Published by {html.escape(owner)} · Revision {revision['number']}</p><p>Creator credits: {html.escape(item['credits'] or 'Not supplied')}</p><p><a class="button" href="{html.escape(revision_link, quote=True)}">Open in SGL</a></p><p>Or paste this link into SGL’s Shared library tab:</p><p><small>{html.escape(url)}</small></p><p><a href="https://sglifers.github.io/SGL/">Install SGL</a></p></html>'''
+        return f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} · SGL</title><meta property="og:title" content="{title}"><meta property="og:description" content="{description}"><meta property="og:url" content="{html.escape(url, quote=True)}"><style>body{{background:#10152b;color:#f5f7ff;font:17px system-ui;max-width:760px;margin:60px auto;padding:24px}}a{{color:#f3be4f}}img{{max-width:100%;border-radius:8px}}.button{{display:inline-block;background:#f3be4f;color:#171027;padding:12px 20px;border-radius:6px;text-decoration:none}}small{{color:#b9b7d6}}</style><h1>{title}</h1><p>{description}</p>{preview}{tag_html}<p>Published by {html.escape(owner)} · Revision {revision['number']}</p><p>Creator credits: {html.escape(item['credits'] or 'Not supplied')}</p><p><a class="button" href="{html.escape(revision_link, quote=True)}">Open in SGL</a></p><p>Or paste this link into SGL’s Shared library tab:</p><p><small>{html.escape(url)}</small></p><p><a href="https://sglifers.github.io/SGL/">Install SGL</a></p></html>'''
 
 
 _service = None

@@ -72,9 +72,16 @@ class AwsRepositoryTests(unittest.TestCase):
         record = self.repo.get("UPLOAD#" + upload["uploadId"])
         self.repo.s3.put_object(Bucket=self.repo.bucket, Key=record["key"], Body=data)
         import uuid
-        item = self.service.publish({"requestId": uuid.uuid4().hex, "title": "Test arena", "kind": "map", "content": {"uploadId": upload["uploadId"]}}, self.user)
+        item = self.service.publish({"requestId": uuid.uuid4().hex, "title": "Test arena", "kind": "map", "visibility": "public", "tags": ["TDM", "Friday event"], "content": {"uploadId": upload["uploadId"]}}, self.user)
         revision = self.service.revision(self.service.item(item["itemId"]), item["revisionId"])
         self.assertEqual(digest(data), revision["content"]["sha256"])
+        page = self.service.dispatch("GET", "/items", {"tag": "tdm", "creator": "CREATOR"}, {}, {})
+        self.assertEqual([item["itemId"]], [i["id"] for i in page["items"]])
+        updated = self.service.publish({"requestId": uuid.uuid4().hex, "title": "Test arena", "tags": ["KOTH"], "expectedRevisionId": item["revisionId"], "content": {"reuseRevisionId": item["revisionId"]}}, self.user, item["itemId"])
+        latest = self.service.item(item["itemId"])
+        self.assertEqual(["KOTH"], latest["tags"])
+        self.assertEqual(["Friday event", "TDM"], self.service.revision(latest, item["revisionId"])["metadata"]["tags"])
+        self.assertEqual(revision["content"]["sha256"], self.service.revision(latest, updated["revisionId"])["content"]["sha256"])
 
     def test_login_consumption_and_limits_are_conditional(self):
         self.repo.put({"pk": "LOGIN#claim-test", "sk": "META", "status": "pending", "expiresAt": 1_900_000_000})

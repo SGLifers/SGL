@@ -76,7 +76,7 @@ public partial class MainWindow
         var heading = new TextBlock { Text = "Tags for " + target.Name, TextWrapping = TextWrapping.Wrap, FontSize = 18, Margin = new Thickness(0, 0, 0, 12) };
         var input = new TextBox { Text = string.Join(", ", TagsFor(target.Id)), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, VerticalContentAlignment = VerticalAlignment.Top, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxLength = 2000 };
         var details = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
-        var help = new TextBlock { Text = "Separate tags with commas. Examples: TDM, 1v1, Friday event. Up to 20 tags, 40 characters each. Tags stay in your local SGL library.", TextWrapping = TextWrapping.Wrap, Foreground = Brush("#B9B7D6"), FontSize = 12 };
+        var help = new TextBlock { Text = "Separate tags with commas. Examples: TDM, 1v1, Friday event. Up to 20 tags, 40 characters each. Tags are included when you publish or export this map.", TextWrapping = TextWrapping.Wrap, Foreground = Brush("#B9B7D6"), FontSize = 12 };
         var buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         var save = new Button { Content = "Save tags", IsDefault = true, Background = Brush("#F3BE4F"), Foreground = Brush("#171027") };
         var cancel = new Button { Content = "Cancel", IsCancel = true };
@@ -98,6 +98,7 @@ public partial class MainWindow
         if (dialog.ShowDialog() != true) return;
         mapTags = TagStore.Read();
         RefreshMapTagFilter(); FilterMaps(); FilterInstalledMaps(); UpdateMapTagDetails();
+        UpdatePublishMapTags();
         MapStatus.Text = "Saved local tags for " + target.Name + ".";
     });
 }

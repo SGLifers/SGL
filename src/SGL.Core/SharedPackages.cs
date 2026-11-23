@@ -11,6 +11,7 @@ public static class SharedPackages
             throw new InvalidDataException("A package contains a map, a mode, or one of each.");
         foreach (var item in package.Entries)
         {
+            _ = SharedTags.Read(item.Attribution);
             if (!LibraryClient.ValidId(item.ItemId) || !LibraryClient.ValidId(item.RevisionId) || item.Kind is not ("map" or "mode"))
                 throw new InvalidDataException("Invalid shared package identity.");
             if (item.Kind == "map")
@@ -84,6 +85,8 @@ public static class SharedPackages
         }
         if (entries.Count is < 1 or > 2 || entries.Select(e => e.Kind).Distinct().Count() != entries.Count || zip.Entries.Count != entries.Count + 1)
             throw new InvalidDataException("A package contains one map and/or one mode.");
-        return new((string)manifest["title"]!, entries, (string?)manifest["bundleId"], (string?)manifest["bundleRevisionId"]);
+        var package = new SharedPackage((string)manifest["title"]!, entries, (string?)manifest["bundleId"], (string?)manifest["bundleRevisionId"]);
+        Validate(package);
+        return package;
     }
 }

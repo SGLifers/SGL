@@ -15,6 +15,12 @@ public sealed record LibraryItem(JsonObject Json)
     public string OwnerId => (string)Json["ownerId"]!;
     public string Description => (string?)Json["description"] ?? "";
     public string OwnerName => (string?)Json["owner"]?["displayName"] ?? "Unknown";
+    public string[] Tags => SharedTags.ReadNode(Json["tags"]);
+    public string TagSummary => string.Join(" · ", Tags);
+    public bool Matches(string search, string? tag = null, string? creator = null) =>
+        (string.IsNullOrWhiteSpace(tag) || Tags.Contains(tag.Trim(), StringComparer.OrdinalIgnoreCase))
+        && (string.IsNullOrWhiteSpace(creator) || new[] { OwnerName, OwnerId, (string?)Json["owner"]?["discordId"] ?? "" }.Any(v => v.Contains(creator.Trim(), StringComparison.OrdinalIgnoreCase)))
+        && (search.Length == 0 || Label.Contains(search, StringComparison.OrdinalIgnoreCase) || Description.Contains(search, StringComparison.OrdinalIgnoreCase) || Tags.Any(t => t.Contains(search, StringComparison.OrdinalIgnoreCase)));
     public string Label => $"{Title} · {Kind} · {OwnerName}";
     public override string ToString() => Label;
 }
@@ -107,13 +113,17 @@ public sealed class LibraryClient : IDisposable
             catch (HttpRequestException) when (retryable && attempt < 2) { await Task.Delay(500 * (attempt + 1), cancel); }
         }
     }
-    public async Task<(LibraryItem[] Items, string? Cursor)> List(bool mine, string? kind = null, string? cursor = null, CancellationToken cancel = default)
+    public async Task<(LibraryItem[] Items, string? Cursor)> List(bool mine, string? kind = null, string? cursor = null, CancellationToken cancel = default, string? tag = null, string? creator = null)
     {
         var query = new List<string>();
         if (kind != null)
             query.Add("kind=" + Uri.EscapeDataString(kind));
         if (cursor != null)
             query.Add("cursor=" + Uri.EscapeDataString(cursor));
+        if (!string.IsNullOrWhiteSpace(tag))
+            query.Add("tag=" + Uri.EscapeDataString(tag.Trim()));
+        if (!string.IsNullOrWhiteSpace(creator))
+            query.Add("creator=" + Uri.EscapeDataString(creator.Trim()));
         var data = await Send((mine ? "me/items" : "items") + "?" + string.Join('&', query), cancel: cancel);
         return (data["items"]!.AsArray().Select(n => new LibraryItem(n!.AsObject())).ToArray(), (string?)data["cursor"]);
     }

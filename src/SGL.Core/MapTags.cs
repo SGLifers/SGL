@@ -54,4 +54,12 @@ public sealed class MapTags(string path)
         return (selectedTag == null || values.Contains(selectedTag, StringComparer.OrdinalIgnoreCase))
             && (search.Length == 0 || values.Any(t => t.Contains(search, StringComparison.OrdinalIgnoreCase)));
     }
+    public bool ImportShared(string mapId, IEnumerable<string> incoming, IEnumerable<string>? previousShared)
+    {
+        var current = Read().GetValueOrDefault(mapId) ?? [];
+        // A local addition or removal is a host preference; retain it on updates.
+        if (previousShared != null && !SharedTags.Equal(current, previousShared)) return false;
+        Set(mapId, incoming);
+        return true;
+    }
 }

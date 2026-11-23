@@ -85,13 +85,13 @@ class SharingTests(unittest.TestCase):
     def request(self, kind="mode", visibility="public", **extra):
         return {"requestId": uuid.uuid4().hex, "kind": kind, "title": "Test item", "visibility": visibility, "credits": "Original creator", "changeNote": "Initial publication", "content": {"payload": self.mode}, **extra}
 
-    def publish_map(self, visibility="public", user=None):
+    def publish_map(self, visibility="public", user=None, **extra):
         user = user or self.user
         data = map_bytes()
         upload = self.service.upload({"sha256": digest(data), "size": len(data)}, user)
         record = self.repo.get("UPLOAD#" + upload["uploadId"])
         self.repo.blobs[record["key"]] = data
-        body = self.request("map", visibility, content={"uploadId": upload["uploadId"]})
+        body = self.request("map", visibility, content={"uploadId": upload["uploadId"]}, **extra)
         return self.service.publish(body, user)
 
     def assert_problem(self, status, action):
@@ -245,6 +245,88 @@ class SharingTests(unittest.TestCase):
         self.assertNotIn("never-print-this", result["body"])
         event["body"] = "invalid json"
         self.assertEqual(400, app.handler(event, None)["statusCode"])
+
+
+
+    def test_tags_are_revision_metadata_and_tag_only_updates_reuse_map(self):
+        first = self.publish_map(tags=[" TDM ", "tdm", "Friday   event", "Cafe\u0301"])
+        item = self.service.item(first["itemId"], self.user)
+        self.assertEqual(["Café", "Friday event", "TDM"], item["tags"])
+        body = self.request("map", tags=["KOTH"], expectedRevisionId=first["revisionId"], content={"reuseRevisionId": first["revisionId"]})
+        second = self.service.publish(body, self.user, item["id"])
+        latest = self.service.item(item["id"], self.user)
+        original = self.service.download(latest, self.service.revision(latest, first["revisionId"]), self.user)
+        current = self.service.download(latest, self.service.revision(latest, second["revisionId"]), self.user)
+        self.assertEqual(["Café", "Friday event", "TDM"], original["item"]["tags"])
+        self.assertEqual(["KOTH"], current["item"]["tags"])
+        self.assertEqual(original["download"]["sha256"], current["download"]["sha256"])
+        self.assertEqual(1, len(self.repo.blobs) - len([k for k in self.repo.blobs if k.startswith("staging/")]))
+        self.assertEqual(first["revisionId"], current["revision"]["parentRevisionId"])
+        # An old client omitting tags preserves labels; [] explicitly clears them.
+        legacy = self.service.publish(self.request("map", expectedRevisionId=second["revisionId"], content={"reuseRevisionId": first["revisionId"]}), self.user, item["id"])
+        self.assertEqual(["KOTH"], self.service.item(item["id"], self.user)["tags"])
+        self.service.publish(self.request("map", tags=[], expectedRevisionId=legacy["revisionId"], content={"reuseRevisionId": first["revisionId"]}), self.user, item["id"])
+        self.assertEqual([], self.service.item(item["id"], self.user)["tags"])
+
+    def test_tags_and_creator_filters_keep_visibility_and_pagination(self):
+        first = self.publish_map(tags=["TDM", "Friday event"])
+        second = self.publish_map(user=self.other, tags=["KOTH"])
+        hidden = self.publish_map("private", tags=["TDM"])
+        def listing(query, headers={}):
+            return self.service.dispatch("GET", "/items", query, headers, {})
+        result = listing({"tag": "tdm", "creator": "CREATOR"})
+        self.assertEqual([first["itemId"]], [i["id"] for i in result["items"]])
+        self.assertEqual([second["itemId"]], [i["id"] for i in listing({"creator": self.other["id"]})["items"]])
+        self.assertEqual(2, len(listing({"creator": self.user["discordId"]})["items"]))
+        self.assertEqual([], listing({"tag": "TDM", "creator": "missing"})["items"])
+        original_listing = self.repo.listing
+        def page(partition, cursor=None, owner=False):
+            self.assertEqual("page-two", cursor)
+            return original_listing(partition, owner=owner)[0], "page-three"
+        self.repo.listing = page
+        self.assertEqual("page-three", listing({"tag": "TDM", "cursor": "page-two"})["cursor"])
+        self.assertNotIn(hidden["itemId"], [i["id"] for i in listing({"tag": "TDM", "cursor": "page-two"})["items"]])
+        self.assert_problem(400, lambda: listing({"tag": "x" * 41, "cursor": "page-two"}))
+        self.assert_problem(400, lambda: listing({"creator": "x" * 101, "cursor": "page-two"}))
+
+    def test_bundle_and_fork_tags_use_the_pinned_map_revision(self):
+        first = self.publish_map(tags=["TDM"])
+        mode = self.service.publish(self.request(), self.user)
+        refs = {"map": {"itemId": first["itemId"], "revisionId": first["revisionId"]}, "mode": {"itemId": mode["itemId"], "revisionId": mode["revisionId"]}}
+        bundle = self.service.publish(self.request("bundle", content=refs), self.user)
+        self.service.publish(self.request("map", tags=["KOTH"], expectedRevisionId=first["revisionId"], content={"reuseRevisionId": first["revisionId"]}), self.user, first["itemId"])
+        bundled = self.service.item(bundle["itemId"], self.user)
+        self.assertEqual(["TDM"], bundled["tags"])
+        downloaded = self.service.download(bundled, self.service.revision(bundled, bundle["revisionId"]), self.user)
+        self.assertEqual(["TDM"], next(d for d in downloaded["dependencies"] if d["item"]["kind"] == "map")["item"]["tags"])
+        fork = self.publish_map(user=self.other, forkOf={"itemId": first["itemId"], "revisionId": first["revisionId"]})
+        self.assertEqual(["TDM"], self.service.item(fork["itemId"], self.other)["tags"])
+
+    def test_invalid_tag_metadata_is_rejected_before_publication(self):
+        for value in (None, "TDM", {}, [1], [True], [""], ["a,b"], ["x" * 41], ["hidden\0control"], ["tag" + str(i) for i in range(21)], ["🐛" * 21]):
+            with self.subTest(value=repr(value)):
+                self.assert_problem(400, lambda: self.service.publish(self.request(tags=value), self.user))
+        self.assertEqual([], self.repo.listing("PUBLIC")[0])
+
+    def test_reusing_map_content_requires_ownership_and_same_item(self):
+        first = self.publish_map(tags=["TDM"])
+        body = self.request("map", content={"reuseRevisionId": first["revisionId"]}, expectedRevisionId=first["revisionId"])
+        self.assert_problem(403, lambda: self.service.publish(body, self.other, first["itemId"]))
+        self.assert_problem(403, lambda: self.service.publish(self.request("map", content={"reuseRevisionId": first["revisionId"]}), self.user))
+        another = self.publish_map()
+        self.assert_problem(404, lambda: self.service.publish(self.request("map", content={"reuseRevisionId": first["revisionId"]}, expectedRevisionId=another["revisionId"]), self.user, another["itemId"]))
+
+    def test_share_page_escapes_tags_and_legacy_revisions_have_no_tags(self):
+        first = self.publish_map(tags=["<script>event</script>"])
+        page = self.service.share_page(first["itemId"], first["revisionId"])
+        self.assertIn("&lt;script&gt;event&lt;/script&gt;", page)
+        self.assertNotIn("<script>event</script>", page)
+        revision = self.repo.get("ITEM#" + first["itemId"], "REV#" + first["revisionId"])
+        revision["metadata"].pop("tags")
+        self.repo.put(revision)
+        item = self.service.item(first["itemId"], self.user)
+        self.assertEqual([], self.service.download(item, revision, self.user)["item"]["tags"])
+        self.assertNotIn("Tags:", self.service.share_page(first["itemId"], first["revisionId"]))
 
 
 if __name__ == "__main__": unittest.main()

@@ -7,7 +7,7 @@ namespace SGL.Desktop;
 
 public partial class MainWindow
 {
-    sealed record PublishSource(string Id, string Name, string Kind, byte[] Data, JsonObject Attribution);
+    sealed record PublishSource(string Id, string Name, string Kind, byte[] Data, JsonObject Attribution, string[] Tags);
     PublishSource LocalModeSource()
     {
         if (PublishMode.SelectedItem is not LocalShareSource selected)
@@ -27,7 +27,7 @@ public partial class MainWindow
             id = saved.Id;
         }
         Modes.Validate(Configuration.Wrapped(value));
-        return new(id, Configuration.Name(value), "mode", Encoding.UTF8.GetBytes(value.ToJsonString()), SourceAttribution("mode", id));
+        return new(id, Configuration.Name(value), "mode", Encoding.UTF8.GetBytes(value.ToJsonString()), SourceAttribution("mode", id), []);
     }
     PublishSource LocalMapSource()
     {
@@ -43,7 +43,9 @@ public partial class MainWindow
         var attribution = SourceAttribution("map", map.Id);
         if (attribution.Count == 0)
             attribution["credits"] = map.Author;
-        return new(map.Id, map.Name, "map", bytes, attribution);
+        var tags = TagStore.Read().GetValueOrDefault(map.Id) ?? [];
+        attribution["tags"] = SharedTags.Array(tags);
+        return new(map.Id, map.Name, "map", bytes, attribution, tags);
     }
     JsonObject SourceAttribution(string kind, string localId)
     {
@@ -54,7 +56,7 @@ public partial class MainWindow
     void LibraryExportLocal(object sender, RoutedEventArgs e) => Run(() =>
     {
         var sources = ShareKind == "bundle" ? new[] { LocalMapSource(), LocalModeSource() } : new[] { ShareKind == "map" ? LocalMapSource() : LocalModeSource() };
-        var entries = sources.Select(s => new SharedEntry(PortableId(s.Kind, s.Id), Json.Hash(s.Data)[..32].ToLowerInvariant(), s.Kind, s.Name, s.Data, s.Attribution)).ToArray();
+        var entries = sources.Select(s => new SharedEntry(PortableId(s.Kind, s.Id), SharedTags.PublicationHash(s.Data, s.Tags)[..32].ToLowerInvariant(), s.Kind, s.Name, s.Data, s.Attribution)).ToArray();
         SaveSharedPackage(new(PublishTitle.Text.Trim().Length == 0 ? sources[0].Name : PublishTitle.Text.Trim(), entries));
     });
     async void LibraryPublish(object sender, RoutedEventArgs e) => await LibraryWork(async cancel =>
@@ -66,25 +68,32 @@ public partial class MainWindow
         if (title.Length is < 1 or > 120 || note.Length == 0)
             throw new InvalidDataException("Enter a title and change note before publishing.");
         var sources = kind == "bundle" ? new[] { LocalMapSource(), LocalModeSource() } : new[] { kind == "map" ? LocalMapSource() : LocalModeSource() };
+        if (sources.Any(s => s.Kind == "map"))
+        {
+            var health = await client.Send("health", cancel: cancel);
+            if (health["features"] is not JsonArray features || !features.Any(f => (string?)f == "mapTags") || !features.Any(f => (string?)f == "reuseMapRevision"))
+                throw new InvalidOperationException("This sharing service needs an update to support map tags. Portable package export works offline.");
+        }
         var selected = LibraryItems.SelectedItem as LibraryItem;
         var selectedRevision = LibraryRevisions.SelectedItem as LibraryRevision;
         if (action != "new" && (selected == null || selected.Kind != kind || selectedRevision == null))
             throw new InvalidOperationException("Select a shared item of the same type in Browse first.");
         if (action == "update" && selected!.OwnerId != (string?)user["id"])
             throw new InvalidOperationException("Only the publisher can add revisions. Choose My own version for another creator’s item.");
-        string summary = string.Join("\n", sources.Select(s => "• " + s.Name + " (" + s.Kind + ")"));
+        string summary = string.Join("\n", sources.Select(s => "• " + s.Name + " (" + s.Kind + ")" + (s.Tags.Length > 0 ? " · Tags: " + string.Join(", ", s.Tags) : "")));
         if (!Confirm($"Publish “{title}” as {visibility}?\n\n{summary}\n\nPublished by: {user["displayName"]}\nChange note: {note}\n\n{(kind == "bundle" ? "The selected map and mode will be published as needed, then paired at exact revisions." : "The selected content and creator credits will be uploaded.")}"))
             return;
         LibraryStatus.Text = "Publishing selected content…";
         string publicationScope = client.Root.AbsoluteUri + "#" + (string)user["id"]!;
-        JsonObject Form(string itemTitle) => new()
+        JsonObject Form(string itemTitle, string[] tags) => new()
         {
             ["requestId"] = Guid.NewGuid().ToString("N"),
             ["title"] = itemTitle,
             ["description"] = description,
             ["credits"] = credits,
             ["changeNote"] = note,
-            ["visibility"] = visibility
+            ["visibility"] = visibility,
+            ["tags"] = SharedTags.Array(tags)
         };
         async Task<JsonObject> Content(PublishSource source)
         {
@@ -93,7 +102,7 @@ public partial class MainWindow
         async Task<JsonObject> PublishAsset(PublishSource source, bool bundleDependency)
         {
             var previous = SharedState.Published(publicationScope, source.Kind, source.Id);
-            JsonObject form = Form(bundleDependency ? source.Name : title);
+            JsonObject form = Form(bundleDependency ? source.Name : title, source.Tags);
             form["kind"] = source.Kind;
             string? updateId = null;
             if (bundleDependency && previous != null)
@@ -101,7 +110,7 @@ public partial class MainWindow
                 var publishedItem = await client.Item((string)previous["itemId"]!, cancel);
                 string currentVisibility = (string)publishedItem.Json["visibility"]!;
                 bool compatible = visibility == "private" || visibility == "unlisted" && currentVisibility != "private" || visibility == "public" && currentVisibility == "public";
-                if ((string?)previous["contentHash"] == Json.Hash(source.Data) && compatible)
+                if ((string?)previous["contentHash"] == SharedTags.PublicationHash(source.Data, source.Tags) && compatible)
                     return new JsonObject { ["itemId"] = (string)previous["itemId"]!, ["revisionId"] = (string)previous["revisionId"]! };
                 if (compatible)
                 {
@@ -128,9 +137,16 @@ public partial class MainWindow
             }
             if (credits.Length == 0)
                 form["credits"] = (string?)source.Attribution["item"]?["credits"] ?? (string?)source.Attribution["credits"] ?? "";
-            form["content"] = await Content(source);
+            if (source.Kind == "map" && updateId != null)
+            {
+                string previousRevision = (string)form["expectedRevisionId"]!;
+                var descriptor = await client.Send($"items/{updateId}/revisions/{previousRevision}", cancel: cancel);
+                form["content"] = string.Equals((string?)descriptor["revision"]?["content"]?["sha256"], Json.Hash(source.Data), StringComparison.OrdinalIgnoreCase)
+                    ? new JsonObject { ["reuseRevisionId"] = previousRevision } : await Content(source);
+            }
+            else form["content"] = await Content(source);
             var result = await client.Send(updateId == null ? "items" : $"items/{updateId}/revisions", form, cancel);
-            SharedState.RecordPublication(publicationScope, source.Kind, source.Id, (string)result["itemId"]!, (string)result["revisionId"]!, Json.Hash(source.Data));
+            SharedState.RecordPublication(publicationScope, source.Kind, source.Id, (string)result["itemId"]!, (string)result["revisionId"]!, SharedTags.PublicationHash(source.Data, source.Tags));
             return result;
         }
         JsonObject published;
@@ -138,7 +154,7 @@ public partial class MainWindow
         {
             var map = await PublishAsset(sources.Single(s => s.Kind == "map"), true);
             var mode = await PublishAsset(sources.Single(s => s.Kind == "mode"), true);
-            var form = Form(title);
+            var form = Form(title, sources.Single(s => s.Kind == "map").Tags);
             form["kind"] = "bundle";
             form["content"] = new JsonObject
             {
