@@ -4,5 +4,7 @@
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\..\src\SGL.Core\SGL.Core.csproj" />
+        <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
+        <Compile Include="..\..\src\SGL.Desktop\SharingSession.cs" Link="SharingSession.cs" />
     </ItemGroup>
 </Project>

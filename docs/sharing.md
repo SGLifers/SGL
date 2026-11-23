@@ -1,0 +1,48 @@
+# Sharing maps and gamemodes
+
+SGL 0.3 adds portable packages and a Shared library. Portable `.sglpack` files work without a service or account. Online sharing requires the administrator to deploy the service and configure its Discord application first. The initial preview has no deployed endpoint embedded.
+
+## Send a portable package
+
+1. Open **Shared library → Publish**.
+2. Choose **Map**, **Gamemode**, or **Map + gamemode bundle** and select your local content. The current gamemode editor can be exported before saving it to the game.
+3. Select **Export local package** and send the `.sglpack` file to another player.
+4. The recipient chooses **Shared library → Browse → Import package**, reviews the contents and installs with Splitgate closed.
+
+SGL validates the package, makes a complete game-save backup and registers both bundle entries in one transaction. A bundle also creates a local map-to-mode association. Players select the map and mode separately in the custom lobby. Recipients must already have saved a custom gamemode once so SGL can determine their save ownership.
+
+Offline files preserve creator credits, but their claimed account identities are not authenticated. Imported files never acquire the service's verified attribution status. Packages contain map/configuration data, not executable installers.
+
+## Publish online
+
+Once the service is configured, sign in using **Sign in with Discord**. SGL requests only the Discord `identify` scope. It does not join servers, read messages, or post to Discord.
+
+Choose the content, enter a title, credits and change note, then select visibility:
+
+| Visibility | Access |
+| --- | --- |
+| Public | Listed in the library; anyone can read/download it. |
+| Unlisted | Omitted from browsing; anyone with its link can read/download it. |
+| Private | Only the publishing account can read/download it. |
+
+Publishing is an explicit action. Local saves, local Git history, Windows usernames, CloudSave ownership and local paths are not automatically uploaded. Map archives retain their own embedded metadata; review those files before publishing. Public profiles expose Discord ID, display name and avatar. Credits identify original map authors separately from the account uploading a file.
+
+The copied link pins the exact revision. **Settings & help → Enable Open in SGL links** registers the `sgl:` protocol for the current Windows user. A link opens a review screen; installation always requires confirmation. Keep SGL.exe in its permanent folder before enabling links. Moving the EXE requires enabling them again.
+
+Cancel stops further requests; revisions that already completed remain published. Bundle assets are published before the final bundle, so an interrupted publication can leave individual map or mode items in My publications.
+
+## Edits, revisions and installation
+
+The publisher can add immutable revisions to an item. Other members use **My own version of selected shared item** to publish a fork with an upstream item/revision reference and original credits. A Discord identity is attached by the service, not accepted from the uploaded file. Display names can change; the Discord ID remains the identity reference. This attribution identifies the uploader/editor and does not prove ownership of the underlying map.
+
+Use **Compare revisions** for named gamemode-setting differences. Map revisions retain separate binary versions and hashes; geometry comparisons are not provided. Use **Load older revisions** to browse beyond the first page. Installing an older revision is an explicit restore operation; it preserves later service revisions and makes a local backup.
+
+A bundle pins one map revision and one mode revision. Publishing a newer map or mode does not silently change existing bundles. Public bundles require public dependencies; unlisted bundles cannot reference private dependencies. Making an item public exposes its retained revision history. The app creates separate dependency publications where needed to avoid exposing previously private history through a public bundle. Changing dependencies to private later can make a previously shared bundle unavailable.
+
+Installation uses recipient save ownership and retains stable local identities for clean updates. When an installed shared item has local edits, SGL installs a separate copy and keeps those edits. Reinstalling an unchanged revision does nothing. Offline files with a different revision also install as copies. Hash/size checks detect corruption; online attribution is only as trustworthy as the configured service.
+
+Local tracking lives under `%LOCALAPPDATA%\SGL\Profiles\<profile>\shared-library.json`. Full game backups live under `<CloudSave>\Backup\SGL-*`; shared-install receipts include recovery tracking. Per-user publication mappings are separate from installation mappings. Sessions are encrypted with Windows DPAPI for the current user; Discord access tokens and client secrets are not stored on the PC. Signing out clears the local session and attempts server-side revocation. Unreachable-server sessions expire after 30 days.
+
+## Preview limitations
+
+Cloud deployment and a live Discord round-trip still need validation with the target account. Shared editing is owner-only with forks; collaborative permissions, cloud deletion/moderation controls, notifications and map geometry diffs are not included. Operators can hide abusive items through the private administrative datastore. Published revisions and content are retained; there is no automatic cloud garbage collection. A previously issued download URL can remain usable for up to 15 minutes after visibility changes. Deleting a local item does not remove its cloud publication.

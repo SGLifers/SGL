@@ -2,6 +2,7 @@
 
 1. Use the latest servicing .NET 10 SDK. Update/rebuild self-contained releases for runtime security fixes.
 2. Run core and desktop checks. Verify backups, stale saves, single-file Git operation and an update between two fixture builds.
+   For sharing changes, also run the Python service tests and CloudFormation lint in `sharing/README.md`. Before a stable online-sharing release, deploy to the intended account, embed its endpoint, and complete the live Discord/two-machine pilot. Keep undeployed service previews in draft releases.
 3. Tag `vMAJOR.MINOR.PATCH`, or run the Release workflow with that numeric version. Prerelease version suffixes are not supported by the current updater.
 4. CI builds and tests, packages `SGL.zip`, `SGL.exe`, `SHA256SUMS.txt` and a signed `update.json`, then creates a **draft** release. Review its release notes and assets before publishing.
 5. Publish only after host testing. The latest non-prerelease release becomes the startup update feed.

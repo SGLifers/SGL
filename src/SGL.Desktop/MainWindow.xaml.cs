@@ -27,6 +27,8 @@ public partial class MainWindow : Window
         Folder.Text = Arg("--cloud-save") ?? (string?)prefs["cloudSave"] ?? GameStore.DefaultRoot;
         AutoUpdate.IsChecked = (bool?)prefs["autoUpdate"] ?? true;
         loading = false;
+        InitializeSharing();
+        Tabs.SelectionChanged += (s, e) => { if (ReferenceEquals(e.Source, Tabs) && SharedTab.IsSelected) RefreshSharingSources(); };
         SizeChanged += (s, e) => ApplyPaneWidths();
         ModePanes.SizeChanged += (s, e) => ApplyPaneWidths();
         MapPanes.SizeChanged += (s, e) => ApplyPaneWidths();
@@ -35,7 +37,7 @@ public partial class MainWindow : Window
         var categories = Configuration.Schema["ui"]!["categories"]!.AsArray().Select(n => n!.GetValue<string>()).ToList();
         Categories.ItemsSource = categories;
         Categories.SelectedItem = "Players";
-        Loaded += async (s, e) => { Refresh(false); RecoverDraft(); if (payload == null) NewDocument("koth"); string? health = Arg("--update-health"); if (health != null && Path.GetFullPath(health).StartsWith(Path.GetFullPath(Path.Combine(dataRoot, "Updates")) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) Json.Atomic(health, "ready"); if (AutoUpdate.IsChecked == true && Arg("--no-update") == null) await CheckUpdate(false); };
+        Loaded += async (s, e) => { Refresh(false); RecoverDraft(); if (payload == null) NewDocument("koth"); string? health = Arg("--update-health"); if (health != null && Path.GetFullPath(health).StartsWith(Path.GetFullPath(Path.Combine(dataRoot, "Updates")) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) Json.Atomic(health, "ready"); if (Arg("--shared-link") is string link && link.Length > 0) AcceptSharedLink(link); if (AutoUpdate.IsChecked == true && Arg("--no-update") == null) await CheckUpdate(false); };
         Closing += (s, e) => { if ((dirty || invalid.Count > 0) && !Confirm("Discard the unsaved editor changes? You can cancel and save a draft first.")) { e.Cancel = true; return; } history?.Dispose(); };
     }
     string? Arg(string key)
@@ -110,6 +112,7 @@ public partial class MainWindow : Window
             snapshot = next;
             Installed.ItemsSource = next.Modes.Where(m => m.Name.Contains(Search.Text, StringComparison.OrdinalIgnoreCase)).ToArray();
             RefreshMaps();
+            RefreshSharingSources();
             UpdateRevisions();
             string backupRoot = Path.Combine(store.Root, "Backup");
             Backups.ItemsSource = Directory.Exists(backupRoot) ? Directory.GetDirectories(backupRoot).OrderDescending().ToArray() : [];
@@ -157,12 +160,15 @@ public partial class MainWindow : Window
         payload = Configuration.Clone(p);
         opened = Configuration.Clone(p);
         selectedId = id;
+        if (id == null)
+            editorShareId = Guid.NewGuid().ToString("N");
         openedArchiveHash = snapshot?.Modes.SingleOrDefault(m => m.Id == id)?.ArchiveHash;
         ModeName.Text = Configuration.Name(p);
         invalid.Clear();
         dirty = false;
         loading = false;
         Render();
+        RefreshSharingSources();
     }
     void NewDocument(string basis)
     {
@@ -477,7 +483,7 @@ public partial class MainWindow : Window
                 return;
             }
             UpdateStatus.Text = "Verified update " + update.Value.Release.Version + " downloaded.";
-            if (dirty || invalid.Count > 0)
+            if (dirty || invalid.Count > 0 || libraryBusy)
             {
                 UpdateStatus.Text += " Save your draft and restart SGL to apply it.";
                 return;

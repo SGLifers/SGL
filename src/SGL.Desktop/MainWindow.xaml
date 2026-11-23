@@ -106,6 +106,7 @@
                             <Button Content="Save draft" Click="SaveDraft" />
                             <Button Content="Export JSON" Click="Export" />
                             <Button Content="Duplicate" Click="Duplicate" />
+                            <Button Content="Share mode" Click="ShareEditorMode" />
                             <TextBlock x:Name="DirtyLabel" VerticalAlignment="Center" Foreground="#F3BE4F" Margin="6" />
                         </WrapPanel>
                     </Grid>
@@ -179,6 +180,90 @@
                     </Grid>
                 </Grid>
             </TabItem>
+            <TabItem x:Name="SharedTab" Header="Shared library">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <WrapPanel>
+                        <Button Content="Sign in with Discord" Click="LibrarySignIn" />
+                        <Button Content="Sign out" Click="LibrarySignOut" />
+                        <Button Content="Cancel" Click="LibraryCancel" />
+                        <TextBlock x:Name="LibraryAccount" VerticalAlignment="Center" Margin="8,0" />
+                    </WrapPanel>
+                    <TextBlock x:Name="LibraryStatus" Grid.Row="1" Text="Public maps, modes and bundles. Local editing stays offline; publishing is explicit." Foreground="#B9B7D6" TextWrapping="Wrap" Margin="0,6,0,12" />
+                    <TabControl x:Name="LibraryPages" Grid.Row="2">
+                        <TabItem Header="Browse">
+                            <Grid Margin="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="350" MinWidth="240" />
+                                    <ColumnDefinition Width="10" />
+                                    <ColumnDefinition Width="*" MinWidth="400" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Margin="0,0,8,0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <WrapPanel>
+                                        <Button Content="Refresh" Click="LibraryRefresh" />
+                                        <CheckBox x:Name="LibraryMine" Content="My publications" Click="LibraryRefresh" />
+                                    </WrapPanel>
+                                    <TextBox x:Name="LibrarySearch" Grid.Row="1" TextChanged="LibrarySearchChanged" ToolTip="Filter loaded items by title or creator" Margin="0,0,0,8" />
+                                    <ListBox x:Name="LibraryItems" Grid.Row="2" SelectionChanged="LibraryItemSelected" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding Title}" TextWrapping="Wrap" /><TextBlock Text="{Binding Label}" Foreground="#B9B7D6" FontSize="12" TextWrapping="Wrap" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <WrapPanel Grid.Row="3" Margin="0,8,0,0"><Button Content="Load more" Click="LibraryMore" /><Button Content="Import package" Click="LibraryImportPackage" /></WrapPanel>
+                                </Grid>
+                                <GridSplitter Grid.Column="1" Style="{StaticResource PaneDivider}" AutomationProperties.Name="Resize shared library list" />
+                                <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Margin="8,0,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Open a shared link" Margin="0,0,0,6" />
+                                        <DockPanel><Button DockPanel.Dock="Right" Content="Open" Click="LibraryOpenLink" Margin="8,0,0,6" /><TextBox x:Name="LibraryLink" ToolTip="Paste an SGL share link or item identity" /></DockPanel>
+                                        <TextBlock x:Name="LibraryDetails" Text="Select a shared item." TextWrapping="Wrap" Margin="0,16,0,12" />
+                                        <TextBlock Text="Selected revision" Margin="0,0,0,4" />
+                                        <ComboBox x:Name="LibraryRevisions" DisplayMemberPath="Label" Margin="0,0,0,6" SelectionChanged="SharedRevisionSelected" />
+                                        <TextBlock x:Name="LibraryRevisionAttribution" Foreground="#B9B7D6" TextWrapping="Wrap" Margin="0,0,0,10" />
+                                        <TextBlock Text="Compare with revision" Margin="0,0,0,4" />
+                                        <ComboBox x:Name="LibraryCompareRevision" DisplayMemberPath="Label" Margin="0,0,0,10" />
+                                        <Button Content="Load older revisions" Click="LibraryOlderRevisions" HorizontalAlignment="Left" />
+                                        <WrapPanel>
+                                            <Button Content="Install selected revision" Background="{StaticResource Gold}" Foreground="#171027" Click="LibraryInstall" />
+                                            <Button Content="Compare local mode" Click="LibraryCompare" />
+                                            <Button Content="Compare revisions" Click="LibraryCompareVersions" />
+                                            <Button Content="Copy share link" Click="LibraryCopyLink" />
+                                            <Button Content="Creator's Discord profile" Click="LibraryCreatorProfile" />
+                                            <Button Content="Export package" Click="LibraryExport" />
+                                        </WrapPanel>
+                                        <TextBox x:Name="LibraryDiff" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" Height="180" VerticalScrollBarVisibility="Auto" Margin="0,8,0,12" />
+                                        <TextBlock Text="Portable sharing" FontSize="18" Margin="0,12,0,8" />
+                                        <TextBlock Text="Export local content from Publish, or import a .sglpack file. Packages contain content and credits; account attribution in an offline file is not authenticated." TextWrapping="Wrap" Foreground="#B9B7D6" />
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Publish">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="20" MaxWidth="850" HorizontalAlignment="Stretch">
+                                    <TextBlock Text="Publish selected content" FontSize="20" Margin="0,0,0,12" />
+                                    <TextBlock Text="Content" /><ComboBox x:Name="PublishKind" SelectedIndex="1" Margin="0,5,0,10" SelectionChanged="PublishKindChanged"><ComboBoxItem Content="Map" Tag="map" /><ComboBoxItem Content="Gamemode" Tag="mode" /><ComboBoxItem Content="Map + gamemode bundle" Tag="bundle" /></ComboBox>
+                                    <TextBlock Text="Local map" /><ComboBox x:Name="PublishMap" DisplayMemberPath="Name" Margin="0,5,0,10" SelectionChanged="PublishSourceChanged" />
+                                    <TextBlock Text="Local gamemode" /><ComboBox x:Name="PublishMode" DisplayMemberPath="Name" SelectedValuePath="Id" Margin="0,5,0,10" SelectionChanged="PublishSourceChanged" />
+                                    <TextBlock Text="Publication" /><ComboBox x:Name="PublishAction" SelectedIndex="0" Margin="0,5,0,10"><ComboBoxItem Content="New item" Tag="new" /><ComboBoxItem Content="New revision of selected shared item" Tag="update" /><ComboBoxItem Content="My own version of selected shared item" Tag="fork" /></ComboBox>
+                                    <TextBlock Text="Title" /><TextBox x:Name="PublishTitle" MaxLength="120" Margin="0,5,0,10" />
+                                    <TextBlock Text="Description" /><TextBox x:Name="PublishDescription" MaxLength="2000" AcceptsReturn="True" TextWrapping="Wrap" Height="75" VerticalContentAlignment="Top" Margin="0,5,0,10" />
+                                    <TextBlock Text="Original creator credits" /><TextBox x:Name="PublishCredits" MaxLength="1000" Margin="0,5,0,10" />
+                                    <TextBlock Text="What changed?" /><TextBox x:Name="PublishNote" Text="Initial publication" MaxLength="1000" Margin="0,5,0,10" />
+                                    <TextBlock Text="Visibility" /><ComboBox x:Name="PublishVisibility" SelectedIndex="0" Margin="0,5,0,12"><ComboBoxItem Content="Unlisted · anyone with the link" Tag="unlisted" /><ComboBoxItem Content="Public · shown in the community library" Tag="public" /><ComboBoxItem Content="Private · only your account" Tag="private" /></ComboBox>
+                                    <TextBlock Text="A bundle publishes the selected map and mode as needed, then pins their exact revisions. Existing creator credits are retained. Game-save ownership and local file paths are not uploaded." TextWrapping="Wrap" Foreground="#B9B7D6" Margin="0,0,0,12" />
+                                    <WrapPanel><Button Content="Publish" Background="{StaticResource Gold}" Foreground="#171027" Click="LibraryPublish" /><Button Content="Export local package" Click="LibraryExportLocal" /></WrapPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </TabItem>
             <TabItem Header="History">
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
@@ -227,6 +312,9 @@
                         <Button Content="Reset pane widths" Click="ResetPaneWidths" />
                     </WrapPanel>
                     <TextBlock x:Name="UpdateStatus" TextWrapping="Wrap" />
+                    <TextBlock Text="Sharing service" Margin="0,20,0,6" />
+                    <DockPanel><Button DockPanel.Dock="Right" Content="Save service URL" Click="SaveLibraryService" Margin="8,0,0,6" /><TextBox x:Name="LibraryServiceUrl" ToolTip="HTTPS service URL from the SGL sharing deployment" /></DockPanel>
+                    <Button Content="Enable Open in SGL links" Click="EnableSharedLinks" HorizontalAlignment="Left" Margin="0,8,8,6" />
                     <TextBlock Margin="0,20,0,0" TextWrapping="Wrap" Text="Unsigned releases may require review in Windows Security → Virus &amp; threat protection → Protection history. Only allow the official release you have verified. SGL never changes security settings." />
                     <TextBlock Margin="0,20,0,0" Foreground="#B9B7D6" Text="Drag the vertical dividers to resize lists and editor panes. SGL remembers your widths." />
                 </StackPanel>

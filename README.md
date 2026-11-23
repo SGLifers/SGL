@@ -1,6 +1,6 @@
 # SGL — SplitGate Lifers
 
-A Windows community app for lobby hosts. Configure gamemodes, browse and install community maps, associate maps with modes, compare local Git revisions, and restore earlier configurations.
+A Windows community app for lobby hosts. Configure gamemodes, install community maps, associate maps with modes, share versioned packages, compare local Git revisions, and restore earlier configurations.
 
 [Download SGL](https://github.com/SGLifers/SGL/releases/latest) · [Illustrated setup guide](https://sglifers.github.io/SGL/)
 
@@ -30,6 +30,8 @@ The release targets Windows x64. Windows 10/11 compatibility needs testing on ea
 - Drag dividers to resize the installed-mode sidebar, settings categories and map details. Widths persist across restarts; Settings includes Reset pane widths.
 - Automatic backups, complete-manifest restoration, stale-write checks and game-running guards.
 - Signed update metadata and verified downloads from this repository; the Windows executable itself is unsigned.
+- Portable `.sglpack` files for maps, gamemodes and paired bundles. Recipients install through SGL with a complete backup.
+- Shared library with Discord sign-in, public/unlisted/private publications, attributed immutable revisions, forks and pinned map-to-mode bundles. The initial 0.3 preview awaits AWS deployment and Discord setup; offline packages work now. See [sharing](docs/sharing.md) and [deployment](sharing/README.md).
 
 Unknown base variants are captured in history and exportable, but read-only. KOTH has no kill-scoring component in its saved template: its five kill/death/assist scoring controls are shown as unavailable. Existing custom rules may be ignored or clamped by the game. The installed-mode history uses stable FileIds: deleting/recreating a mode outside SGL produces a distinct identity. Startup scans cannot recover edits the game never saved or intermediate changes between scans. The history selector currently displays the latest 1,000 commits; older commits remain in the local repository.
 
@@ -37,7 +39,7 @@ Unknown base variants are captured in history and exportable, but read-only. KOT
 
 Open **Maps** to load the Splitgate-Architects community catalog. Pick a map and select **Install selected map** with Splitgate closed. The catalog is cached for offline browsing; downloads need a connection. Installation accepts map archives containing `World.cf1047`; prefab and gamemode archives are rejected. Existing map identities and unregistered files are never overwritten, protecting Map Lab edits. Maps are not executable code and no MapLoader script is run.
 
-Catalog and map data come from the community repository over HTTPS. This catalog does not publish independent checksums or signatures: archive validation and recorded SHA-256 hashes detect local changes, but do not authenticate authorship. Current limits are 8 MB for the catalog, 128 MB compressed and 1 GB expanded for each map. Prefabs, map updates, map binary Git history, and sharing associations are outside this version. Mode Git history remains independent; full backups include all registered map and mode archives.
+Catalog and map data come from the community repository over HTTPS. This catalog does not publish independent checksums or signatures: archive validation and recorded SHA-256 hashes detect local changes, but do not authenticate authorship. Current limits are 8 MB for the catalog, 128 MB compressed and 1 GB expanded for each map. Prefabs, automatic catalog-map updates and map binary Git history are outside this version. Shared publications have separate immutable revisions. Mode Git history remains independent; full backups include all registered map and mode archives.
 
 Map associations are stored per CloudSave profile in `map-mode-links.json`; stable FileIds preserve links across SGL renames. They do not alter map data or gamemode payloads.
 
@@ -62,7 +64,7 @@ Install the .NET 10 SDK on Windows, then run:
 ```powershell
 dotnet build src/SGL.Desktop/SGL.Desktop.csproj
 dotnet run --project tests/SGL.Tests
-./scripts/package.ps1 -Version 0.2.1
+./scripts/package.ps1 -Version 0.3.0
 ```
 
 The test executable uses temporary game-save folders and a mock game-running probe. Never point a test host at real player saves. Development UI arguments `--cloud-save <folder> --data <folder> --no-update` isolate desktop checks. Production builds retain the real process guard.

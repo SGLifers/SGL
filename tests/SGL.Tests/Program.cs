@@ -359,7 +359,8 @@ Check(File.Exists(GameStore.Inside(unsafeDelete.Root, unrelatedRel)), "Unrelated
 if (File.Exists(liveCatalogFixture)) Check(Maps.ParseCatalog(File.ReadAllText(liveCatalogFixture)).Length > 5000, "Actual community catalog rejected");
 string liveMapFixture = Path.Combine("artifacts", "references", "sample-map.bin");
 if (File.Exists(liveMapFixture)) Check(Maps.Inspect(File.ReadAllBytes(liveMapFixture)).Name == "Simulation Omega", "Actual map archive rejected");
-Console.WriteLine($"Passed {assertions} assertions: complete settings audit, presets, Git history, backups/restoration, maps, deletion/recovery, stale-write/game guards and signed updates.");
+await SharedLibraryTests.Run(work, Check, Reject);
+Console.WriteLine($"Passed {assertions} assertions: settings, presets, Git history, backups, maps, deletion, sharing/packages, stale-write/game guards and signed updates.");
 Console.WriteLine("Fixtures: " + work);
 sealed class FixtureHttp(string envelope, byte[] bytes) : HttpMessageHandler
 {
