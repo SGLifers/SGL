@@ -122,13 +122,30 @@ class Service:
     def public_user(self, user):
         return {k: user.get(k) for k in ("id", "discordId", "displayName", "avatarUrl")}
 
-    def public_item(self, item):
+    def public_item(self, item, actor=None, include_preview=False):
         result = {k: item.get(k) for k in ("id", "kind", "title", "description", "visibility", "ownerId", "credits", "source", "forkOf", "latestRevisionId", "revisionNumber", "createdAt", "updatedAt")}
         owner = self.repo.get("USER#" + item["ownerId"])
         result["owner"] = self.public_user(owner) if owner else {"id": item["ownerId"], "displayName": "Former member"}
         result["shareUrl"] = self.base + "/share/" + item["id"]
         result["tags"] = item.get("tags", [])
+        if include_preview:
+            result["preview"] = self.preview(item, self.revision(item, item["latestRevisionId"]), actor) if item["kind"] in ("map", "bundle") else None
         return result
+
+    def preview(self, item, revision, actor=None):
+        if item["kind"] == "bundle":
+            ref = revision["content"]["map"]
+            try:
+                dependency = self.item(ref["itemId"], actor)
+                return self.preview(dependency, self.revision(dependency, ref["revisionId"]), actor)
+            except Problem as error:
+                if error.status == 404:
+                    return None
+                raise
+        image = revision["content"].get("preview") if item["kind"] == "map" else None
+        if not image:
+            return None
+        return {"url": self.repo.download_url(image["key"]), "sha256": image["sha256"], "size": image["size"]}
 
     def public_revision(self, revision):
         result = {k: revision.get(k) for k in ("id", "itemId", "number", "parentRevisionId", "actorId", "createdAt", "changeNote", "content", "metadata")}
@@ -305,7 +322,9 @@ class Service:
             for ref in revision["content"].values():
                 dependency = self.item(ref["itemId"], actor)
                 result["dependencies"].append(self.download(dependency, self.revision(dependency, ref["revisionId"]), actor))
+            result["preview"] = next(d["preview"] for d in result["dependencies"] if d["item"]["kind"] == "map")
         else:
+            result["preview"] = self.preview(item, revision, actor)
             blob = revision["content"]
             result["download"] = {"url": self.repo.download_url(blob["key"], "SGL-" + item["id"] + (".bin" if item["kind"] == "map" else ".json")), "sha256": blob["sha256"], "size": blob["size"]}
         return result
@@ -313,7 +332,7 @@ class Service:
     def dispatch(self, method, path, query, headers, body, ip="unknown"):
         if path == "/health" and method == "GET":
             config = self.configuration()
-            return {"service": "SGL sharing", "version": "1", "authConfigured": bool(config.get("clientId") and config.get("clientSecret")), "features": ["mapTags", "creatorFilter", "reuseMapRevision"]}
+            return {"service": "SGL sharing", "version": "1", "authConfigured": bool(config.get("clientId") and config.get("clientSecret")), "features": ["mapTags", "creatorFilter", "reuseMapRevision", "mapPreviews"]}
         if path == "/auth/start" and method == "POST": return self.start_auth(body, ip)
         if path == "/auth/poll" and method == "POST": return self.poll_auth(body)
         if path == "/auth/callback" and method == "GET": return self.callback(query)
@@ -337,12 +356,13 @@ class Service:
             for record in records:
                 current = self.repo.get("ITEM#" + record["id"])
                 if current and (current["ownerId"] == actor["id"] if own else current["visibility"] == "public") and (not kind or current["kind"] == kind):
-                    entry = self.public_item(current)
+                    entry = self.public_item(current, actor)
                     owner = entry["owner"]
                     if tag and not any(label.casefold() == tag for label in entry["tags"]):
                         continue
                     if creator and not any(creator in str(value or "").casefold() for value in (entry["ownerId"], owner.get("displayName"), owner.get("discordId"))):
                         continue
+                    entry["preview"] = self.preview(current, self.revision(current, current["latestRevisionId"]), actor) if current["kind"] in ("map", "bundle") else None
                     visible.append(entry)
             return {"items": visible, "cursor": cursor}
         if path == "/uploads" and method == "POST": return self.upload(body, self.actor(headers, required=True))
@@ -361,7 +381,7 @@ class Service:
                 if path.endswith("/revisions"):
                     revisions, cursor = self.repo.listing("REVISIONS#" + item["id"], query.get("cursor"))
                     return {"revisions": [self.public_revision(r) for r in revisions], "cursor": cursor}
-                return self.public_item(item)
+                return self.public_item(item, actor, include_preview=True)
         raise Problem(404, "Route not found.")
 
     def share_page(self, item_id, revision_id=None):

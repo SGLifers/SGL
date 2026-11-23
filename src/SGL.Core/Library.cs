@@ -17,6 +17,7 @@ public sealed record LibraryItem(JsonObject Json)
     public string OwnerName => (string?)Json["owner"]?["displayName"] ?? "Unknown";
     public string[] Tags => SharedTags.ReadNode(Json["tags"]);
     public string TagSummary => string.Join(" · ", Tags);
+    public JsonObject? Preview => Json["preview"] as JsonObject;
     public bool Matches(string search, string? tag = null, string? creator = null) =>
         (string.IsNullOrWhiteSpace(tag) || Tags.Contains(tag.Trim(), StringComparer.OrdinalIgnoreCase))
         && (string.IsNullOrWhiteSpace(creator) || new[] { OwnerName, OwnerId, (string?)Json["owner"]?["discordId"] ?? "" }.Any(v => v.Contains(creator.Trim(), StringComparison.OrdinalIgnoreCase)))
@@ -170,6 +171,22 @@ public sealed class LibraryClient : IDisposable
         if (uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length > 0 || uri.Fragment.Length > 0 || !Regex.IsMatch(uri.Host, @"\A[a-z0-9.-]+\.s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com\z"))
             throw new InvalidDataException("Shared file URL is outside AWS S3.");
         return uri;
+    }
+    public static async Task<byte[]?> FetchPreview(JsonObject? preview, CancellationToken cancel = default, HttpMessageHandler? handler = null)
+    {
+        if (preview == null) return null;
+        if (!long.TryParse(preview["size"]?.ToJsonString(), out long size) || size is < 3 or > 2_000_000 || preview["sha256"] is not JsonValue hash || !hash.TryGetValue<string>(out var sha) || sha.Length != 64 || !sha.All(Uri.IsHexDigit))
+            throw new InvalidDataException("Invalid shared preview size or checksum.");
+        var url = StorageUrl((string)preview["url"]!);
+        // Presigned S3 requests never carry the Discord/SGL session token.
+        using var client = handler == null ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) : new HttpClient(handler, false);
+        client.Timeout = TimeSpan.FromSeconds(15);
+        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancel);
+        response.EnsureSuccessStatusCode();
+        var bytes = await Bounded(response.Content, size, cancel);
+        if (bytes.LongLength != size || !Json.Hash(bytes).Equals(sha, StringComparison.OrdinalIgnoreCase) || bytes[0] != 0xff || bytes[1] != 0xd8 || bytes[2] != 0xff)
+            throw new InvalidDataException("Shared preview checksum, size or format did not match.");
+        return bytes;
     }
     public async Task<SharedPackage> Download(string id, string revision, CancellationToken cancel = default)
     {

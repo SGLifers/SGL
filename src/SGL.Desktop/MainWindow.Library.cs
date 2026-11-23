@@ -12,6 +12,7 @@ public partial class MainWindow
 {
     bool libraryBusy, updatingShareSources;
     CancellationTokenSource? libraryRequest;
+    CancellationTokenSource? libraryPreviewRequest;
     readonly List<LibraryItem> sharedItems = [];
     string? libraryCursor, revisionsCursor;
     string appliedLibraryTag = "", appliedLibraryCreator = "";
@@ -32,11 +33,17 @@ public partial class MainWindow
         LibraryServiceUrl.Text = LibraryRoot;
         RefreshSharingAccount();
         Closing += (s, e) => libraryRequest?.Cancel();
+        var accountTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        accountTimer.Tick += (_, _) => RefreshSharingAccount();
+        accountTimer.Start();
+        Closed += (_, _) => { accountTimer.Stop(); libraryPreviewRequest?.Cancel(); };
     }
     void RefreshSharingAccount()
     {
         var user = string.IsNullOrWhiteSpace(LibraryRoot) ? null : Session(LibraryRoot).Load()?["user"];
         LibraryAccount.Text = user == null ? "Not signed in" : "Signed in as " + (string?)user["displayName"];
+        LibrarySignInButton.Visibility = user == null ? Visibility.Visible : Visibility.Collapsed;
+        LibrarySignOutButton.Visibility = user == null ? Visibility.Collapsed : Visibility.Visible;
         if (string.IsNullOrWhiteSpace(LibraryRoot))
             LibraryStatus.Text = "Sharing service not configured yet. You can export and install portable packages offline.";
     }
@@ -166,11 +173,19 @@ public partial class MainWindow
             LibraryItems.SelectedItem = matches.FirstOrDefault(i => i.Id == selected);
         }
         finally { filteringSharedItems = false; }
+        if (LibraryItems.SelectedItem == null && LibraryMapPreview != null)
+        {
+            libraryPreviewRequest?.Cancel();
+            LibraryMapPreview.PreviewDescriptor = null;
+            LibraryMapPreviewPanel.Visibility = Visibility.Collapsed;
+        }
     }
     async void LibraryItemSelected(object sender, SelectionChangedEventArgs e)
     {
         if (LibraryItems.SelectedItem is LibraryItem item && !libraryBusy && !filteringSharedItems)
             await LibraryWork(cancel => LoadSharedItem(item, null, cancel));
+        else if (LibraryItems.SelectedItem == null && !filteringSharedItems)
+            await RefreshSharedPreview();
     }
     async Task LoadSharedItem(LibraryItem item, string? pinned, CancellationToken cancel)
     {
@@ -322,7 +337,7 @@ public partial class MainWindow
         Clipboard.SetText(new Uri(client.Root, "share/" + selected.Item.Id + "?revision=" + selected.Revision.Id).AbsoluteUri);
         LibraryStatus.Text = "Share link copied. It points to the selected revision.";
     });
-    void SharedRevisionSelected(object sender, SelectionChangedEventArgs e)
+    async void SharedRevisionSelected(object sender, SelectionChangedEventArgs e)
     {
         if (LibraryRevisionAttribution != null && LibraryRevisions.SelectedItem is LibraryRevision revision)
         {
@@ -330,6 +345,33 @@ public partial class MainWindow
             var tags = SharedTags.ReadNode(revision.Json["metadata"]?["tags"]);
             LibraryRevisionAttribution.Text += "\nRevision tags: " + (tags.Length > 0 ? string.Join(" · ", tags) : "None");
         }
+        await RefreshSharedPreview();
+    }
+    async Task RefreshSharedPreview()
+    {
+        libraryPreviewRequest?.Cancel();
+        LibraryMapPreview.PreviewDescriptor = null;
+        if (LibraryItems.SelectedItem is not LibraryItem item || item.Kind == "mode" || LibraryRevisions.SelectedItem is not LibraryRevision revision)
+        {
+            LibraryMapPreviewPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+        LibraryMapPreviewPanel.Visibility = Visibility.Visible;
+        using var request = new CancellationTokenSource();
+        libraryPreviewRequest = request;
+        try
+        {
+            JsonObject? preview = item.Preview;
+            if (revision.Id != item.LatestRevisionId || !item.Json.ContainsKey("preview"))
+            {
+                using var client = SharingClient();
+                preview = (await client.Send($"items/{item.Id}/revisions/{revision.Id}", cancel: request.Token))["preview"] as JsonObject;
+            }
+            if (!request.IsCancellationRequested && ReferenceEquals(LibraryItems.SelectedItem, item) && ReferenceEquals(LibraryRevisions.SelectedItem, revision))
+                LibraryMapPreview.PreviewDescriptor = preview;
+        }
+        catch (Exception error) when (error is not OutOfMemoryException) { /* Previews never block installation. */ }
+        finally { if (ReferenceEquals(libraryPreviewRequest, request)) libraryPreviewRequest = null; }
     }
     void LibraryCreatorProfile(object sender, RoutedEventArgs e) => Run(() =>
     {

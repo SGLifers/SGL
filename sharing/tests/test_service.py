@@ -63,10 +63,11 @@ class FakeDiscord:
         return {"id": "123456789012345678", "global_name": "Lobby Host", "avatar": "abcdef"}
 
 
-def map_bytes(world="World.cf1047"):
+def map_bytes(world="World.cf1047", screenshot=None):
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(world, b"test world data")
+        if screenshot is not None: archive.writestr("Screenshot.jpg", screenshot)
         archive.writestr("info.json", json.dumps({"name": "Test map", "author": "Original architect"}))
     return stream.getvalue()
 
@@ -85,9 +86,9 @@ class SharingTests(unittest.TestCase):
     def request(self, kind="mode", visibility="public", **extra):
         return {"requestId": uuid.uuid4().hex, "kind": kind, "title": "Test item", "visibility": visibility, "credits": "Original creator", "changeNote": "Initial publication", "content": {"payload": self.mode}, **extra}
 
-    def publish_map(self, visibility="public", user=None, **extra):
+    def publish_map(self, visibility="public", user=None, image=None, **extra):
         user = user or self.user
-        data = map_bytes()
+        data = map_bytes(screenshot=image)
         upload = self.service.upload({"sha256": digest(data), "size": len(data)}, user)
         record = self.repo.get("UPLOAD#" + upload["uploadId"])
         self.repo.blobs[record["key"]] = data
@@ -327,6 +328,43 @@ class SharingTests(unittest.TestCase):
         item = self.service.item(first["itemId"], self.user)
         self.assertEqual([], self.service.download(item, revision, self.user)["item"]["tags"])
         self.assertNotIn("Tags:", self.service.share_page(first["itemId"], first["revisionId"]))
+
+
+
+    def test_map_previews_are_listed_and_bound_to_revision_and_bundle(self):
+        image = b"\xff\xd8\xfffirst-image"
+        first = self.publish_map(image=image)
+        mode = self.service.publish(self.request(), self.user)
+        bundle = self.service.publish(self.request("bundle", content={"map": {"itemId": first["itemId"], "revisionId": first["revisionId"]}, "mode": {"itemId": mode["itemId"], "revisionId": mode["revisionId"]}}), self.user)
+        listed = self.service.dispatch("GET", "/items", {}, {}, {})["items"]
+        for entry in (e for e in listed if e["kind"] in ("map", "bundle")):
+            self.assertEqual(digest(image), entry["preview"]["sha256"])
+            self.assertTrue(entry["preview"]["url"].startswith("https://bucket.s3."))
+        self.assertIsNone(next(e for e in listed if e["kind"] == "mode")["preview"])
+        second_image = b"\xff\xd8\xffsecond-image"
+        data = map_bytes(screenshot=second_image)
+        upload = self.service.upload({"sha256": digest(data), "size": len(data)}, self.user)
+        self.repo.blobs[self.repo.get("UPLOAD#" + upload["uploadId"])["key"]] = data
+        second = self.service.publish(self.request("map", expectedRevisionId=first["revisionId"], content={"uploadId": upload["uploadId"]}), self.user, first["itemId"])
+        current = self.service.dispatch("GET", "/items/" + first["itemId"], {}, {}, {})
+        self.assertEqual(digest(second_image), current["preview"]["sha256"])
+        item = self.service.item(first["itemId"])
+        pinned = self.service.download(item, self.service.revision(item, first["revisionId"]), None)
+        self.assertEqual(digest(image), pinned["preview"]["sha256"])
+        self.assertNotIn("preview", pinned["item"])  # No expiring S3 URLs in portable attribution.
+        bundled = self.service.dispatch("GET", "/items/" + bundle["itemId"], {}, {}, {})
+        self.assertEqual(digest(image), bundled["preview"]["sha256"])
+        self.service.publish(self.request("map", visibility="private", expectedRevisionId=second["revisionId"], content={"reuseRevisionId": second["revisionId"]}), self.user, first["itemId"])
+        anonymous = self.service.dispatch("GET", "/items/" + bundle["itemId"], {}, {}, {})
+        self.assertIsNone(anonymous["preview"])
+        owner = self.service.public_item(self.service.item(bundle["itemId"]), self.user, include_preview=True)
+        self.assertEqual(digest(image), owner["preview"]["sha256"])
+        self.assert_problem(404, lambda: self.service.dispatch("GET", "/items/" + first["itemId"], {}, {}, {}))
+
+    def test_maps_without_a_screenshot_have_no_preview(self):
+        first = self.publish_map()
+        item = self.service.dispatch("GET", "/items/" + first["itemId"], {}, {}, {})
+        self.assertIsNone(item["preview"])
 
 
 if __name__ == "__main__": unittest.main()

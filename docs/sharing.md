@@ -13,6 +13,14 @@ SGL validates the package, makes a complete game-save backup and registers both 
 
 Offline files preserve creator credits, but their claimed account identities are not authenticated. Imported files never acquire the service's verified attribution status. Packages contain map/configuration data, not executable installers.
 
+## Map images
+
+The **0.3.4 preview or later** shows image thumbnails for shared maps and map/gamemode bundles, plus a larger preview for the selected revision. Bundle previews use their pinned map revision. Existing publications with an embedded `Screenshot.jpg` gain previews without republishing when their screenshot was accepted by the service (JPEG, up to 2 MB).
+
+Previews load separately from the map download and are cached in memory. Missing, expired or invalid images show a placeholder and do not prevent installation. Private-map previews require access; making a bundle's map private removes its anonymous preview. Changing revisions updates the displayed image.
+
+The Discord sign-in button is hidden while a valid SGL session is active. Sign out or let the session expire to show it again.
+
 ## Map tags and discovery
 
 Shareable tags and the tag/publisher filters require the **0.3.3 or later**. Version 0.3.2 keeps tags local.

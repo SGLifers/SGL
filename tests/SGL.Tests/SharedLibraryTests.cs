@@ -8,6 +8,29 @@ static class SharedLibraryTests
 {
     public static async Task Run(string work, Action<bool, string> check, Action<Action, string> reject)
     {
+        byte[] imageBytes = [0xff, 0xd8, 0xff, 1, 2, 3, 4];
+        JsonObject ImageDescriptor(byte[] bytes, string url = "https://sgl-content.s3.us-west-2.amazonaws.com/preview") => new()
+        { ["url"] = url, ["size"] = bytes.Length, ["sha256"] = Json.Hash(bytes) };
+        using var previewHttp = new PreviewHttp(imageBytes, check);
+        check((await LibraryClient.FetchPreview(ImageDescriptor(imageBytes), handler: previewHttp))!.SequenceEqual(imageBytes), "Shared preview bytes changed");
+        check(await LibraryClient.FetchPreview(null, handler: previewHttp) == null, "Missing preview did not return an empty result");
+        async Task PreviewRejected(JsonObject descriptor, string message, HttpMessageHandler? handler = null)
+        {
+            bool failed = false;
+            try { await LibraryClient.FetchPreview(descriptor, handler: handler ?? previewHttp); }
+            catch (Exception error) when (error is InvalidDataException or HttpRequestException) { failed = true; }
+            check(failed, message);
+        }
+        var badHash = ImageDescriptor(imageBytes); badHash["sha256"] = new string('0', 64);
+        await PreviewRejected(badHash, "Preview checksum mismatch was accepted");
+        var oversized = ImageDescriptor(imageBytes); oversized["size"] = 2_000_001;
+        await PreviewRejected(oversized, "Oversized preview was accepted");
+        await PreviewRejected(ImageDescriptor(imageBytes, "https://evil.test/image.jpg"), "Preview request escaped S3");
+        await PreviewRejected(ImageDescriptor(imageBytes), "Redirected preview was accepted", new PreviewHttp(imageBytes, check, HttpStatusCode.Redirect));
+        byte[] wrongFormat = [1, 2, 3, 4];
+        await PreviewRejected(ImageDescriptor(wrongFormat), "Invalid preview format was accepted", new PreviewHttp(wrongFormat, check));
+        var undersized = ImageDescriptor(imageBytes); undersized["size"] = 4;
+        await PreviewRejected(undersized, "Preview download exceeded its declared size");
         string sessionPath = Path.Combine(work, "Session", "sharing.bin");
         var session = new SGL.Desktop.SharingSession(sessionPath, "https://sharing.example.test/");
         var sessionData = new JsonObject { ["token"] = "test-session-never-plaintext", ["expiresAt"] = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds() };
@@ -213,6 +236,16 @@ static class SharedLibraryTests
         state.RecordPublication("service-user", "mode", originalId, modeId, modeRevision, Json.Hash(mode));
         check((string?)new LibraryState(Path.Combine(work, "SharedProfile", "library.json")).Published("service-user", "mode", originalId)?["itemId"] == modeId, "Publication identity did not persist");
         check(state.Published("another-user", "mode", originalId) == null, "Publication ownership crossed user scope");
+    }
+    sealed class PreviewHttp(byte[] bytes, Action<bool, string> check, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancel)
+        {
+            check(request.Headers.Authorization == null, "SGL credentials leaked to a preview download");
+            var response = new HttpResponseMessage(status) { Content = new ByteArrayContent(bytes) };
+            if (status == HttpStatusCode.Redirect) response.Headers.Location = new Uri("https://evil.test/redirect");
+            return Task.FromResult(response);
+        }
     }
     sealed class FilterHttp(JsonObject item, Action<bool, string> check) : HttpMessageHandler
     {

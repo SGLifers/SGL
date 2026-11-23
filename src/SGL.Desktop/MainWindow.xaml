@@ -1,4 +1,4 @@
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="SGL.Desktop.MainWindow" Style="{StaticResource {x:Type Window}}" Title="SGL · SplitGate Lifers" Width="1350" Height="900" MinWidth="1000" MinHeight="700" WindowStartupLocation="CenterScreen">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:SGL.Desktop" x:Class="SGL.Desktop.MainWindow" Style="{StaticResource {x:Type Window}}" Title="SGL · SplitGate Lifers" Width="1350" Height="900" MinWidth="1000" MinHeight="700" WindowStartupLocation="CenterScreen">
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -204,8 +204,8 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <WrapPanel>
-                        <Button Content="Sign in with Discord" Click="LibrarySignIn" />
-                        <Button Content="Sign out" Click="LibrarySignOut" />
+                        <Button x:Name="LibrarySignInButton" Content="Sign in with Discord" Click="LibrarySignIn" />
+                        <Button x:Name="LibrarySignOutButton" Content="Sign out" Click="LibrarySignOut" Visibility="Collapsed" />
                         <Button Content="Cancel" Click="LibraryCancel" />
                         <TextBlock x:Name="LibraryAccount" VerticalAlignment="Center" Margin="8,0" />
                     </WrapPanel>
@@ -233,7 +233,22 @@
                                         <TextBlock Text="Search loaded results" FontSize="12" Foreground="#B9B7D6" /><TextBox x:Name="LibrarySearch" TextChanged="LibrarySearchChanged" ToolTip="Search loaded items by title, description, creator or tags" Margin="0,4,0,0" />
                                     </StackPanel>
                                     <ListBox x:Name="LibraryItems" Grid.Row="2" SelectionChanged="LibraryItemSelected" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                        <ListBox.ItemTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding Title}" TextWrapping="Wrap" /><TextBlock Text="{Binding Label}" Foreground="#B9B7D6" FontSize="12" TextWrapping="Wrap" /><TextBlock Text="{Binding TagSummary}" Foreground="{StaticResource Gold}" FontSize="12" TextWrapping="Wrap" /></StackPanel></DataTemplate></ListBox.ItemTemplate>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel>
+                                                    <Border DockPanel.Dock="Left" Width="104" Height="72" Margin="0,0,10,0" Background="#10152B" ClipToBounds="True">
+                                                        <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding Kind}" Value="mode"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Border.Style>
+                                                        <Grid>
+                                                            <local:SharedMapImage x:Name="Thumbnail" PreviewDescriptor="{Binding Preview}" Stretch="UniformToFill" />
+                                                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" Foreground="#B9B7D6">
+                                                                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="No image" /><Style.Triggers><DataTrigger Binding="{Binding IsLoading, ElementName=Thumbnail}" Value="True"><Setter Property="Text" Value="Loading…" /></DataTrigger><DataTrigger Binding="{Binding HasPreview, ElementName=Thumbnail}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Grid>
+                                                    </Border>
+                                                    <StackPanel><TextBlock Text="{Binding Title}" TextWrapping="Wrap" /><TextBlock Text="{Binding Label}" Foreground="#B9B7D6" FontSize="12" TextWrapping="Wrap" /><TextBlock Text="{Binding TagSummary}" Foreground="{StaticResource Gold}" FontSize="12" TextWrapping="Wrap" /></StackPanel>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
                                     </ListBox>
                                     <WrapPanel Grid.Row="3" Margin="0,8,0,0"><Button Content="Load more" Click="LibraryMore" /><Button Content="Import package" Click="LibraryImportPackage" /></WrapPanel>
                                 </Grid>
@@ -243,6 +258,14 @@
                                         <TextBlock Text="Open a shared link" Margin="0,0,0,6" />
                                         <DockPanel><Button DockPanel.Dock="Right" Content="Open" Click="LibraryOpenLink" Margin="8,0,0,6" /><TextBox x:Name="LibraryLink" ToolTip="Paste an SGL share link or item identity" /></DockPanel>
                                         <TextBlock x:Name="LibraryDetails" Text="Select a shared item." TextWrapping="Wrap" Margin="0,16,0,12" />
+                                        <Border x:Name="LibraryMapPreviewPanel" Visibility="Collapsed" Background="#10152B" Margin="0,0,0,14">
+                                            <Grid Height="230">
+                                                <local:SharedMapImage x:Name="LibraryMapPreview" Stretch="Uniform" />
+                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#B9B7D6">
+                                                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="No preview available" /><Style.Triggers><DataTrigger Binding="{Binding IsLoading, ElementName=LibraryMapPreview}" Value="True"><Setter Property="Text" Value="Loading preview…" /></DataTrigger><DataTrigger Binding="{Binding HasPreview, ElementName=LibraryMapPreview}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Border>
                                         <TextBlock Text="Selected revision" Margin="0,0,0,4" />
                                         <ComboBox x:Name="LibraryRevisions" DisplayMemberPath="Label" Margin="0,0,0,6" SelectionChanged="SharedRevisionSelected" />
                                         <TextBlock x:Name="LibraryRevisionAttribution" Foreground="#B9B7D6" TextWrapping="Wrap" Margin="0,0,0,10" />
