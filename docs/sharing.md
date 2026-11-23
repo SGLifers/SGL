@@ -15,7 +15,7 @@ Offline files preserve creator credits, but their claimed account identities are
 
 ## Map tags and discovery
 
-Shareable tags and the tag/publisher filters require the **0.3.3 preview or later**. Version 0.3.2 keeps tags local.
+Shareable tags and the tag/publisher filters require the **0.3.3 or later**. Version 0.3.2 keeps tags local.
 
 Select a map in **Maps → Edit local tags…** and enter comma-separated labels such as **TDM, 1v1, Friday event**. A map supports up to 20 tags of 40 characters each. The Publish tab previews the tags that will be included.
 
@@ -61,6 +61,6 @@ The sharing service has account-wide monthly cost alerts at 50%, 80% and 100% of
 
 Billing data can be delayed, and storage/monitoring costs continue while paused. These controls reduce further sharing activity; they do not guarantee an exact spending ceiling. Operators must confirm monitoring email delivery and complete the live cutoff checks before community rollout.
 
-## Preview limitations
+## Known limitations
 
-A live Discord round-trip and host/clean-machine pilot are still required before a stable release. Shared editing is owner-only with forks; collaborative permissions, cloud deletion/moderation controls, notifications and map geometry diffs are not included. Operators can hide abusive items through the private administrative datastore. Published revisions and content are retained; there is no automatic cloud garbage collection. A previously issued download URL can remain usable for up to 15 minutes after visibility changes. Deleting a local item does not remove its cloud publication.
+Shared editing is owner-only with forks; collaborative permissions, cloud deletion/moderation controls, notifications and map geometry diffs are not included. Operators can hide abusive items through the private administrative datastore. Published revisions and content are retained; there is no automatic cloud garbage collection. A previously issued download URL can remain usable for up to 15 minutes after visibility changes. Deleting a local item does not remove its cloud publication.
