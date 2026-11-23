@@ -43,6 +43,12 @@ Installation uses recipient save ownership and retains stable local identities f
 
 Local tracking lives under `%LOCALAPPDATA%\SGL\Profiles\<profile>\shared-library.json`. Full game backups live under `<CloudSave>\Backup\SGL-*`; shared-install receipts include recovery tracking. Per-user publication mappings are separate from installation mappings. Sessions are encrypted with Windows DPAPI for the current user; Discord access tokens and client secrets are not stored on the PC. Signing out clears the local session and attempts server-side revocation. Unreachable-server sessions expire after 30 days.
 
+## Service budget pauses
+
+The sharing service has account-wide monthly cost alerts at 50%, 80% and 100% of its configured budget (default $10). When AWS reports a breach of the full budget, the guard pauses the online API and S3 uploads/downloads. Local editing, local history, backups and portable package sharing continue to work. Only an authorized operator can restore the online service; it does not reopen automatically next month. See the [operator budget guide](../sharing/README.md#budget-alerts-and-automatic-cutoff).
+
+Billing data can be delayed, and storage/monitoring costs continue while paused. These controls reduce further sharing activity; they do not guarantee an exact spending ceiling. The initial preview still awaits deployment, a monitored alert email and live cutoff validation.
+
 ## Preview limitations
 
 Cloud deployment and a live Discord round-trip still need validation with the target account. Shared editing is owner-only with forks; collaborative permissions, cloud deletion/moderation controls, notifications and map geometry diffs are not included. Operators can hide abusive items through the private administrative datastore. Published revisions and content are retained; there is no automatic cloud garbage collection. A previously issued download URL can remain usable for up to 15 minutes after visibility changes. Deleting a local item does not remove its cloud publication.

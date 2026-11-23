@@ -10,20 +10,35 @@
     },
     "BudgetEmail": {
       "Type": "String",
-      "Default": ""
+      "MinLength": 3,
+      "MaxLength": 254,
+      "AllowedPattern": "[^\\s@]+@[^\\s@]+\\.[^\\s@]+",
+      "Description": "Required recipient for cost thresholds and cutoff failures. Confirm monitoring SNS email subscription."
+    },
+    "MonthlyBudgetUsd": {
+      "Type": "Number",
+      "Default": 10,
+      "MinValue": 1,
+      "MaxValue": 10000,
+      "Description": "Account-wide monthly USD budget. Notifications are delayed; this is not a hard spending cap."
+    },
+    "SharingPaused": {
+      "Type": "String",
+      "Default": "false",
+      "AllowedValues": [
+        "true",
+        "false"
+      ],
+      "Description": "Deployment preserves the persisted pause. Resume only through the budget-control operator script."
     }
   },
   "Conditions": {
-    "HasBudgetEmail": {
-      "Fn::Not": [
+    "SharingIsPaused": {
+      "Fn::Equals": [
         {
-          "Fn::Equals": [
-            {
-              "Ref": "BudgetEmail"
-            },
-            ""
-          ]
-        }
+          "Ref": "SharingPaused"
+        },
+        "true"
       ]
     }
   },
@@ -194,6 +209,27 @@
                   "aws:SecureTransport": "false"
                 }
               }
+            },
+            {
+              "Fn::If": [
+                "SharingIsPaused",
+                {
+                  "Sid": "SglBudgetStopTransfers",
+                  "Effect": "Deny",
+                  "Principal": "*",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:PutObject"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${ContentBucket.Arn}/*"
+                  }
+                },
+                {
+                  "Ref": "AWS::NoValue"
+                }
+              ]
             }
           ]
         }
@@ -304,6 +340,29 @@
                   "Resource": {
                     "Ref": "DiscordConfiguration"
                   }
+                },
+                {
+                  "Effect": "Deny",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem",
+                    "dynamodb:Query"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "LibraryTable",
+                      "Arn"
+                    ]
+                  },
+                  "Condition": {
+                    "ForAnyValue:StringLike": {
+                      "dynamodb:LeadingKeys": [
+                        "CONTROL#*"
+                      ]
+                    }
+                  }
                 }
               ]
             }
@@ -330,7 +389,13 @@
         },
         "MemorySize": 1024,
         "Timeout": 60,
-        "ReservedConcurrentExecutions": 2,
+        "ReservedConcurrentExecutions": {
+          "Fn::If": [
+            "SharingIsPaused",
+            0,
+            2
+          ]
+        },
         "Code": {
           "S3Bucket": {
             "Ref": "CodeBucket"
@@ -423,20 +488,37 @@
     },
     "MonthlyBudget": {
       "Type": "AWS::Budgets::Budget",
-      "Condition": "HasBudgetEmail",
       "Properties": {
         "Budget": {
           "BudgetName": {
             "Fn::Sub": "${AWS::StackName}-monthly"
           },
           "BudgetLimit": {
-            "Amount": 10,
+            "Amount": {
+              "Ref": "MonthlyBudgetUsd"
+            },
             "Unit": "USD"
           },
           "TimeUnit": "MONTHLY",
           "BudgetType": "COST"
         },
         "NotificationsWithSubscribers": [
+          {
+            "Notification": {
+              "NotificationType": "ACTUAL",
+              "ComparisonOperator": "GREATER_THAN",
+              "Threshold": 50,
+              "ThresholdType": "PERCENTAGE"
+            },
+            "Subscribers": [
+              {
+                "SubscriptionType": "EMAIL",
+                "Address": {
+                  "Ref": "BudgetEmail"
+                }
+              }
+            ]
+          },
           {
             "Notification": {
               "NotificationType": "ACTUAL",
@@ -452,6 +534,624 @@
                 }
               }
             ]
+          },
+          {
+            "Notification": {
+              "NotificationType": "ACTUAL",
+              "ComparisonOperator": "GREATER_THAN",
+              "Threshold": 100,
+              "ThresholdType": "PERCENTAGE"
+            },
+            "Subscribers": [
+              {
+                "SubscriptionType": "EMAIL",
+                "Address": {
+                  "Ref": "BudgetEmail"
+                }
+              },
+              {
+                "SubscriptionType": "SNS",
+                "Address": {
+                  "Ref": "BudgetCutoffTopic"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "DependsOn": [
+        "BudgetCutoffTopicPolicy",
+        "BudgetGuardBudgetSubscription"
+      ]
+    },
+    "BudgetCutoffTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "DisplayName": "SGL budget cutoff"
+      }
+    },
+    "BudgetCutoffTopicPolicy": {
+      "Type": "AWS::SNS::TopicPolicy",
+      "Properties": {
+        "Topics": [
+          {
+            "Ref": "BudgetCutoffTopic"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "budgets.amazonaws.com"
+              },
+              "Action": "sns:Publish",
+              "Resource": {
+                "Ref": "BudgetCutoffTopic"
+              },
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                },
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:budgets::${AWS::AccountId}:budget/${AWS::StackName}-monthly"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BudgetAlarmTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "DisplayName": "SGL budget guard failures"
+      }
+    },
+    "BudgetAlarmTopicPolicy": {
+      "Type": "AWS::SNS::TopicPolicy",
+      "Properties": {
+        "Topics": [
+          {
+            "Ref": "BudgetAlarmTopic"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudwatch.amazonaws.com"
+              },
+              "Action": "sns:Publish",
+              "Resource": {
+                "Ref": "BudgetAlarmTopic"
+              },
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                },
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${AWS::StackName}-budget-*"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BudgetAlarmEmail": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": {
+        "TopicArn": {
+          "Ref": "BudgetAlarmTopic"
+        },
+        "Protocol": "email",
+        "Endpoint": {
+          "Ref": "BudgetEmail"
+        }
+      }
+    },
+    "BudgetFailureQueue": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "MessageRetentionPeriod": 1209600,
+        "SqsManagedSseEnabled": true
+      }
+    },
+    "BudgetFailureQueuePolicy": {
+      "Type": "AWS::SQS::QueuePolicy",
+      "Properties": {
+        "Queues": [
+          {
+            "Ref": "BudgetFailureQueue"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "sns.amazonaws.com"
+              },
+              "Action": "sqs:SendMessage",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "BudgetFailureQueue",
+                  "Arn"
+                ]
+              },
+              "Condition": {
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Ref": "BudgetCutoffTopic"
+                  }
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BudgetGuardLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/lambda/${AWS::StackName}-budget-guard"
+        },
+        "RetentionInDays": 14
+      }
+    },
+    "BudgetGuardRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "SglBudgetControls",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "BudgetGuardLogs",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "LibraryTable",
+                      "Arn"
+                    ]
+                  },
+                  "Condition": {
+                    "ForAllValues:StringEquals": {
+                      "dynamodb:LeadingKeys": [
+                        "CONTROL#BUDGET"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetBucketPolicy",
+                    "s3:PutBucketPolicy"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "ContentBucket",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "lambda:GetFunctionConcurrency",
+                    "lambda:PutFunctionConcurrency"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "ApiFunction",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:SendMessage"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "BudgetFailureQueue",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "BudgetGuardFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${AWS::StackName}-budget-guard"
+        },
+        "Runtime": "python3.13",
+        "Architectures": [
+          "arm64"
+        ],
+        "Handler": "budget_guard.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "BudgetGuardRole",
+            "Arn"
+          ]
+        },
+        "MemorySize": 128,
+        "Timeout": 60,
+        "ReservedConcurrentExecutions": 1,
+        "Code": {
+          "S3Bucket": {
+            "Ref": "CodeBucket"
+          },
+          "S3Key": {
+            "Ref": "CodeKey"
+          }
+        },
+        "Environment": {
+          "Variables": {
+            "TABLE_NAME": {
+              "Ref": "LibraryTable"
+            },
+            "BUCKET_NAME": {
+              "Ref": "ContentBucket"
+            },
+            "API_FUNCTION_NAME": {
+              "Ref": "ApiFunction"
+            },
+            "BUDGET_TOPIC_ARN": {
+              "Ref": "BudgetCutoffTopic"
+            }
+          }
+        }
+      }
+    },
+    "BudgetGuardAsyncFailures": {
+      "Type": "AWS::Lambda::EventInvokeConfig",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "BudgetGuardFunction"
+        },
+        "Qualifier": "$LATEST",
+        "MaximumEventAgeInSeconds": 3600,
+        "MaximumRetryAttempts": 2,
+        "DestinationConfig": {
+          "OnFailure": {
+            "Destination": {
+              "Fn::GetAtt": [
+                "BudgetFailureQueue",
+                "Arn"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "BudgetGuardBudgetPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "BudgetGuardFunction"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "sns.amazonaws.com",
+        "SourceArn": {
+          "Ref": "BudgetCutoffTopic"
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        }
+      }
+    },
+    "BudgetGuardBudgetSubscription": {
+      "Type": "AWS::SNS::Subscription",
+      "DependsOn": [
+        "BudgetGuardBudgetPermission",
+        "BudgetFailureQueuePolicy"
+      ],
+      "Properties": {
+        "TopicArn": {
+          "Ref": "BudgetCutoffTopic"
+        },
+        "Protocol": "lambda",
+        "Endpoint": {
+          "Fn::GetAtt": [
+            "BudgetGuardFunction",
+            "Arn"
+          ]
+        },
+        "RedrivePolicy": {
+          "deadLetterTargetArn": {
+            "Fn::GetAtt": [
+              "BudgetFailureQueue",
+              "Arn"
+            ]
+          }
+        }
+      }
+    },
+    "BudgetReconcileRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "ScheduleExpression": "rate(5 minutes)",
+        "State": "ENABLED",
+        "Targets": [
+          {
+            "Id": "BudgetGuard",
+            "Arn": {
+              "Fn::GetAtt": [
+                "BudgetGuardFunction",
+                "Arn"
+              ]
+            },
+            "Input": "{\"action\":\"reconcile\"}"
+          }
+        ]
+      }
+    },
+    "BudgetGuardSchedulePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "BudgetGuardFunction"
+        },
+        "Action": "lambda:InvokeFunction",
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "BudgetReconcileRule",
+            "Arn"
+          ]
+        },
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        }
+      }
+    },
+    "BudgetGuardErrorAlarm": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "DependsOn": "BudgetAlarmTopicPolicy",
+      "Properties": {
+        "AlarmName": {
+          "Fn::Sub": "${AWS::StackName}-budget-guard-errors"
+        },
+        "AlarmDescription": "SGL budget cutoff requires operator attention. Inspect guard status, logs and failure queue.",
+        "Namespace": "AWS/Lambda",
+        "MetricName": "Errors",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Ref": "BudgetGuardFunction"
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching",
+        "AlarmActions": [
+          {
+            "Ref": "BudgetAlarmTopic"
+          }
+        ]
+      }
+    },
+    "BudgetGuardDroppedAlarm": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "DependsOn": "BudgetAlarmTopicPolicy",
+      "Properties": {
+        "AlarmName": {
+          "Fn::Sub": "${AWS::StackName}-budget-dropped-events"
+        },
+        "AlarmDescription": "SGL budget cutoff requires operator attention. Inspect guard status, logs and failure queue.",
+        "Namespace": "AWS/Lambda",
+        "MetricName": "AsyncEventsDropped",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Ref": "BudgetGuardFunction"
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching",
+        "AlarmActions": [
+          {
+            "Ref": "BudgetAlarmTopic"
+          }
+        ]
+      }
+    },
+    "BudgetFailureQueueAlarm": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "DependsOn": "BudgetAlarmTopicPolicy",
+      "Properties": {
+        "AlarmName": {
+          "Fn::Sub": "${AWS::StackName}-budget-failed-delivery"
+        },
+        "AlarmDescription": "SGL budget cutoff requires operator attention. Inspect guard status, logs and failure queue.",
+        "Namespace": "AWS/SQS",
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "BudgetFailureQueue",
+                "QueueName"
+              ]
+            }
+          }
+        ],
+        "Statistic": "Maximum",
+        "Period": 300,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching",
+        "AlarmActions": [
+          {
+            "Ref": "BudgetAlarmTopic"
+          }
+        ]
+      }
+    },
+    "BudgetReconcileFailureAlarm": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "DependsOn": "BudgetAlarmTopicPolicy",
+      "Properties": {
+        "AlarmName": {
+          "Fn::Sub": "${AWS::StackName}-budget-schedule-failures"
+        },
+        "AlarmDescription": "SGL budget cutoff requires operator attention. Inspect guard status, logs and failure queue.",
+        "Namespace": "AWS/Events",
+        "MetricName": "FailedInvocations",
+        "Dimensions": [
+          {
+            "Name": "RuleName",
+            "Value": {
+              "Ref": "BudgetReconcileRule"
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching",
+        "AlarmActions": [
+          {
+            "Ref": "BudgetAlarmTopic"
+          }
+        ]
+      }
+    },
+    "BudgetGuardDestinationAlarm": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "DependsOn": "BudgetAlarmTopicPolicy",
+      "Properties": {
+        "AlarmName": {
+          "Fn::Sub": "${AWS::StackName}-budget-destination-failures"
+        },
+        "AlarmDescription": "SGL budget cutoff requires operator attention. Inspect guard status, logs and failure queue.",
+        "Namespace": "AWS/Lambda",
+        "MetricName": "DestinationDeliveryFailures",
+        "Dimensions": [
+          {
+            "Name": "FunctionName",
+            "Value": {
+              "Ref": "BudgetGuardFunction"
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching",
+        "AlarmActions": [
+          {
+            "Ref": "BudgetAlarmTopic"
+          }
+        ]
+      }
+    },
+    "BudgetGuardDeliveryAlarm": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "DependsOn": "BudgetAlarmTopicPolicy",
+      "Properties": {
+        "AlarmName": {
+          "Fn::Sub": "${AWS::StackName}-budget-sns-failures"
+        },
+        "AlarmDescription": "SGL budget cutoff requires operator attention. Inspect guard status, logs and failure queue.",
+        "Namespace": "AWS/SNS",
+        "MetricName": "NumberOfNotificationsFailed",
+        "Dimensions": [
+          {
+            "Name": "TopicName",
+            "Value": {
+              "Fn::GetAtt": [
+                "BudgetCutoffTopic",
+                "TopicName"
+              ]
+            }
+          }
+        ],
+        "Statistic": "Sum",
+        "Period": 60,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "TreatMissingData": "notBreaching",
+        "AlarmActions": [
+          {
+            "Ref": "BudgetAlarmTopic"
           }
         ]
       }
@@ -481,6 +1181,26 @@
     "TableName": {
       "Value": {
         "Ref": "LibraryTable"
+      }
+    },
+    "BudgetControlFunctionName": {
+      "Value": {
+        "Ref": "BudgetGuardFunction"
+      }
+    },
+    "BudgetName": {
+      "Value": {
+        "Fn::Sub": "${AWS::StackName}-monthly"
+      }
+    },
+    "BudgetAlarmTopicArn": {
+      "Value": {
+        "Ref": "BudgetAlarmTopic"
+      }
+    },
+    "BudgetFailureQueueUrl": {
+      "Value": {
+        "Ref": "BudgetFailureQueue"
       }
     }
   }
