@@ -72,6 +72,8 @@
                                     </StackPanel>
                                 </Grid>
                                 <WrapPanel Grid.Row="1" Margin="0,12,0,12">
+                                    <TextBlock Text="Rules" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <ComboBox x:Name="RulePhase" Width="170" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="RulePhaseChanged" AutomationProperties.Name="Rule phase" />
                                     <Button Content="Loadout" Click="LoadoutCategory" />
                                     <Button Content="Reset opened values" Click="ResetOpened" />
                                 </WrapPanel>

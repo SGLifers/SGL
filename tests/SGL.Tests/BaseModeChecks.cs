@@ -13,8 +13,8 @@ static class BaseModeChecks
             "multi-team-deathmatch-4v4v4v4v4v4", "multi-team-deathmatch-6v6v6v6", "race",
             "showdown-firecracker", "onslight-graffiti", "speed-bats", "team-shotty-snipers-aeros",
             "team-shotty-snipers-powers", "tdm-1v1"];
-        check(BaseModes.All.Count == 33, "Expected the original three and all 30 new base templates");
-        check(BaseModes.All.Select(b => b.Id).Distinct().Count() == 33, "Duplicate template IDs");
+        check(BaseModes.All.Count == 88, "Expected the complete catalog of View All base templates");
+        check(BaseModes.All.Select(b => b.Id).Distinct().Count() == 88, "Duplicate template IDs");
         check(BaseModes.All.Select(b => b.Name).SequenceEqual(BaseModes.All.Select(b => b.Name).Order(StringComparer.OrdinalIgnoreCase)), "Base modes are not alphabetical");
         check(added.All(id => BaseModes.All.Any(b => b.Id == id)), "A requested base is missing");
         foreach (var basis in BaseModes.All)

@@ -1,0 +1,361 @@
+{
+  "gameBuild": "3.1-643074",
+  "source": "Live Advanced Settings hover descriptions and slider endpoint probes in Splitgate 3.1-643074",
+  "fields": {
+    "NeutralizationRate": {
+      "label": "Neutralization Rate",
+      "min": 0.1,
+      "max": 10,
+      "description": "How fast the zone should neutralize while empty. 1.f represents standard capture rate"
+    },
+    "TimeToCapture": {
+      "label": "Time to Capture",
+      "min": 0,
+      "max": 999,
+      "description": "Time to fully capture a point. 0 results in instant captures."
+    },
+    "PointsOnCapture": {
+      "label": "Points on Capture",
+      "min": 0,
+      "max": 99,
+      "description": "The score to give when a capture point is fully captured."
+    },
+    "TimeToGroupCapture": {
+      "label": "Time to Group Capture",
+      "min": 0,
+      "max": 999,
+      "description": "Time to score a group capture when all active points in the group are controlled (e.g. Hotzone). 0 means that full group captures will happen the moment all active points are captured."
+    },
+    "GroupCapturePoints": {
+      "label": "Group Capture Points",
+      "min": 0,
+      "max": 99,
+      "description": "The score to give when all capture points of this type are fully captured by a team."
+    },
+    "TimeAddedOnGroupCapture": {
+      "label": "Time Added on Group Capture",
+      "min": 0,
+      "max": 999,
+      "description": "Game time to add when a group capture occurs."
+    },
+    "TickPoints": {
+      "label": "Tick Points",
+      "min": 0,
+      "max": 99,
+      "description": "The score to give while a point is captured each tick."
+    },
+    "bNeutralWhileEmpty": {
+      "label": "Neutral While Empty",
+      "description": "Whether or not the zone should neutralize while empty (e.g. KOTH)."
+    },
+    "bUseTeamOwnership": {
+      "label": "Use Team Ownership",
+      "description": "Whether or not hills should be initialized to their associated teams"
+    },
+    "bUseAsymmetricObjectives": {
+      "label": "Use Asymmetric Objectives",
+      "description": "If true, only objectives marked for use in asymmetric modes will be enabled."
+    },
+    "bRespawnCapturingTeamOnPointCapture": {
+      "label": "Respawn Capturing Team on Point Capture",
+      "description": "If true, players who capture a point will be immediately respawned."
+    },
+    "bRespawnOtherTeamsOnPointCapture": {
+      "label": "Respawn Other Teams on Point Capture",
+      "description": "If true, when a point is captured, players who are not on the capturing team will be immediately respawned."
+    },
+    "bRespawnCapturingTeamOnGroupCapture": {
+      "label": "Respawn Capturing Team on Group Capture",
+      "description": "If true, players who complete a full capture will be immediately respawned."
+    },
+    "bRespawnOtherTeamsOnGroupCapture": {
+      "label": "Respawn Other Teams on Group Capture",
+      "description": "If true, when a group capture occurs, players who are not on the capturing team will be immediately respawned."
+    },
+    "bRandomizeCapturePointGroups": {
+      "label": "Randomize Capture Point Groups",
+      "description": "If true, randomizes objective group order."
+    },
+    "bRandomizeCapturePoints": {
+      "label": "Randomize Capture Points",
+      "description": "If true, randomizes capture point order within groups."
+    },
+    "MaxPointsToActivate": {
+      "label": "Max Points to Activate",
+      "min": 0,
+      "max": 10,
+      "description": "Maximum number of points to activate at any moment within a group. If 0, all points in a group will be activated."
+    },
+    "TimeBeforeDeactivation": {
+      "label": "Time Before Deactivation",
+      "min": 0,
+      "max": 999,
+      "description": "Amount of time for points to deactivate after activation. If 0, the objective will not deactivate automatically after a timer."
+    },
+    "BombDefuseTime": {
+      "label": "Bomb Defuse Time",
+      "description": "The time it takes to defuse a bomb that has been planted. If this time is <= 0 then the bomb will be defused instantly.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "BombExplodeTime": {
+      "label": "Bomb Explode Time",
+      "description": "The time it takes for a bomb to explode after it has been planted. If this time is <= 0 then the bomb will explode instantly.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "BombPlantTime": {
+      "label": "Bomb Plant Time",
+      "description": "",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99,
+      "descriptionStatus": "Hover title visible but description empty; recheck in another Firecracker preset."
+    },
+    "BombReturnTime": {
+      "label": "Bomb Return Time",
+      "description": "The time it takes for a bomb to return when it has been dropped without being planted. If this time is == 0 then the bomb will be returned instantly when dropped. If this time is < 0 then the bomb will never automatically return.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI",
+      "min": -1,
+      "max": 99
+    },
+    "DefuseScore": {
+      "label": "Defuse Score",
+      "description": "The score to give the team that defused a bomb.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "bAllowManualBombReturn": {
+      "label": "Allow Manual Bomb Return",
+      "description": "If true, the attacking team can trigger the bomb to return by interacting with the bomb spawner. This only works when the bomb is dropped - it cannot be triggered while the bomb is being carried or if it has been planted.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI"
+    },
+    "bBombAwayTriggersSuddenDeath": {
+      "label": "Bomb Away Triggers Sudden Death",
+      "description": "If true, sudden death activates at the end of the round if the bomb is anywhere BUT the bomb spawner. If this is False, sudden death will still be active while the bomb is planted or while it is being planted.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI"
+    },
+    "bPreventDefenderRespawnsOnPlant": {
+      "label": "Prevent Defender Respawns on Plant",
+      "description": "If true, players defending a plant zone will not be able to respawn as long as a bomb has been planted at one of their zones. Neutral plant zones do not affect this.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI"
+    },
+    "bPreventAttackerRespawnsOnPlant": {
+      "label": "Prevent Attacker Respawns on Plant",
+      "description": "If true, players who planted a bomb (and their team) will not be able to respawn as long as the bomb stays planted. This only affects a single team, not any other teams that may be present. As such, this only really makes sense to use in 2-team scenarios.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI"
+    },
+    "bRespawnDefendersOnPlant": {
+      "label": "Respawn Defenders on Plant",
+      "description": "If true, players defending a plant zone will be immediately respawned once a bomb has been planted at one of their zones. Neutral plant zones do not affect this.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI"
+    },
+    "bRespawnAttackersOnPlant": {
+      "label": "Respawn Attackers on Plant",
+      "description": "If true, players who planted a bomb (and their team) will be immediately respawned once the bomb is planted. This only affects a single team, not any other teams that may be present. As such, this only really makes sense to use in 2-team scenarios.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI"
+    },
+    "bRespawnDefendersOnDefuse": {
+      "label": "Respawn Defenders on Defuse",
+      "description": "If true, players defending a plant zone will be immediately respawned once a bomb is defused at one of their zones. Neutral plant zones do not affect this.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI"
+    },
+    "bRespawnAttackersOnDefuse": {
+      "label": "Respawn Attackers on Defuse",
+      "description": "If true, players who planted a bomb (and their team) will be immediately respawned once the bomb is defused. This only affects a single team, not any other teams that may be present. As such, this only really makes sense to use in 2-team scenarios.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI"
+    },
+    "ExplodeScore": {
+      "label": "Explode Score",
+      "min": 0,
+      "max": 99,
+      "description": "The score to give the team that planted a bomb that exploded.",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI"
+    },
+    "ObjectiveType": {
+      "label": "Objective Type",
+      "choices": [
+        "Neutral",
+        "Team"
+      ],
+      "description": "Whether or not the mode is team (i.e. offense/defense) assault or neutral assault",
+      "source": "Live Chaos Firecracker Standard Rules / Mode UI"
+    },
+    "bEnableCaptureZones": {
+      "label": "Enable Capture Zones",
+      "description": "Whether capture zones are enabled.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI"
+    },
+    "InitialObjectives": {
+      "label": "Initial Objectives",
+      "description": "The number of initial objectives to spawn. Set to <= 0 to disable initial objectives.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI",
+      "min": 1,
+      "max": 10
+    },
+    "InitialObjectiveTime": {
+      "label": "Initial Objective Time",
+      "description": "The amount of time before spawning the initial set of objectives. Set to <= 0 to spawn immediately.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "AdditionalObjectives": {
+      "label": "Additional Objectives",
+      "description": "The number of objectives to spawn every time the additional objective timer expires. Set to <= 0 to disable additional objectives.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI",
+      "min": 0,
+      "max": 10
+    },
+    "AdditionalObjectiveTime": {
+      "label": "Additional Objective Time",
+      "description": "The amount of time after the initial spawn before new objectives spawn. This timer loops. Set to <= 0 to disable additional objectives.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI",
+      "min": 10,
+      "max": 999
+    },
+    "MaxObjectives": {
+      "label": "Max Objectives",
+      "description": "The maximum number of objectives that can be spawned. Set to <= 0 for no maximum.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "ReturnTime": {
+      "label": "Return Time",
+      "description": "The amount of time before an objective is returned after being dropped when \"not\" in a capture zone. Set to 0 for instant returns.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "ReturnTimeMultiplierWhenOutOfBounds": {
+      "label": "Return Time Multiplier when Out Of Bounds",
+      "description": "The applied multiplier to the ReturnTime timer when an objective is out of bounds.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI",
+      "min": 0.1,
+      "max": 10
+    },
+    "bRandomizeInitialSpawns": {
+      "label": "Randomize Initial Spawns",
+      "description": "If true, initial objective spawns will be selected in a random order. If false, initial objective spawns will be selected in order of spawn index (lowest to highest).",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI"
+    },
+    "bRandomizeAdditionalSpawns": {
+      "label": "Randomize Additional Spawns",
+      "description": "If true, additional objective spawns will be selected in a random order. If false, additional objective spawns will be selected in order of spawn index (lowest to highest).",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI"
+    },
+    "bScoreBallsOutsideZone": {
+      "label": "Score Balls Outside Zone",
+      "description": "If true, objectives will count for their capture zone's team even when not inside that zone. This is also known as \"paintball\" mode as balls conceptually are \"painted\" by their capture zone until captured by a different one. This means that objectives will not return to \"neutral\" when removed from a capture zone.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI"
+    },
+    "bRespawnPlayersOnObjectiveSpawn": {
+      "label": "Respawn Players on Objective Spawn",
+      "description": "If true, all players will be respawned when a new objective spawns.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI"
+    },
+    "bRespawnPlayersOnFirstObjectiveCapture": {
+      "label": "Respawn Players on First Objective Capture",
+      "description": "If true, all players will be respawned the first time each unique objective is captured.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI"
+    },
+    "ObjectiveScore": {
+      "label": "Objective Score",
+      "description": "The amount of score each objective in a capture zone is worth.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "HeldBallScore": {
+      "label": "Held Ball Score",
+      "description": "The amount of score each objective being held is worth.",
+      "source": "Live Chaos Splitball Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "KitKillKillerScore": {
+      "label": "Kit Kill Killer Score",
+      "description": "The score to give players on a standard kill with a weapon in their kit.",
+      "source": "Live Gun Game Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "KitKillVictimScore": {
+      "label": "Kit Kill Victim Score",
+      "description": "The score to give players on a standard kill with a weapon in their kit.",
+      "source": "Live Gun Game Standard Rules / Mode UI",
+      "min": -99,
+      "max": 99
+    },
+    "HumiliationKillKillerScore": {
+      "label": "Humiliation Kill Killer Score",
+      "description": "The score to give killers on a \"humiliation\" kill (kills with items like melee and so on when gun kills are intended).",
+      "source": "Live Gun Game Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "HumiliationKillVictimScore": {
+      "label": "Humiliation Kill Victim Score",
+      "description": "The score to give victims who die to a \"humiliation\" kill (kills with items like melee and so on when gun kills are intended).",
+      "source": "Live Gun Game Standard Rules / Mode UI",
+      "min": -99,
+      "max": 99
+    },
+    "AssistedSuicideKillerScore": {
+      "label": "Assisted Suicide Killer Score",
+      "description": "The score to give killers on an \"assisted suicide\" kill (suicides where the victim takes damage from an outside source before the suicide).",
+      "source": "Live Gun Game Standard Rules / Mode UI",
+      "min": 0,
+      "max": 99
+    },
+    "AssistedSuicideVictimScore": {
+      "label": "Assisted Suicide Victim Score",
+      "description": "The score to give victims who die to an \"assisted suicide\" kill (suicides where the victim takes damage from an outside source before the suicide).",
+      "source": "Live Gun Game Standard Rules / Mode UI",
+      "min": -99,
+      "max": 99
+    },
+    "SelfSuicideScore": {
+      "label": "Self Suicide Score",
+      "description": "The score to give to players who suicide without outside interference (i.e. suicides that aren't assisted by hostile players).",
+      "source": "Live Gun Game Standard Rules / Mode UI",
+      "min": -99,
+      "max": 99
+    },
+    "bWinOnFinalKitPromotion": {
+      "label": "Win on Final Kit Promotion",
+      "description": "Whether promoting past the final kit should grant a win to all players matching the condition",
+      "source": "Live Gun Game Standard Rules / Mode UI"
+    },
+    "bUpdateLoadoutWhileAlive": {
+      "label": "Update Loadout While Alive",
+      "description": "Whether we should update players' loadouts while they're still alive",
+      "source": "Live Gun Game Standard Rules / Mode UI"
+    },
+    "bRaceRestartsEnabled": {
+      "label": "Race Restarts Enabled",
+      "description": "Whether or not restarting the race is allowed.",
+      "source": "Live Race Standard Rules / Mode hover"
+    },
+    "TeabagConfirmPoints": {
+      "label": "Teabag Confirm Points",
+      "min": 0,
+      "max": 0,
+      "description": "How many points are earned upon confirming an opposing teabag.",
+      "source": "Live Teabag Confirmed / Mode",
+      "notes": "Both large negative and positive numeric entries and slider drag clamp/display 0 in game; original saved confirm value is 1. Preserve saved defaults; UI endpoints are 0/0, not engine limits."
+    },
+    "TeabagDenyPoints": {
+      "label": "Teabag Deny Points",
+      "min": 0,
+      "max": 0,
+      "description": "How many points are earned upon confirming a friendly teabag.",
+      "source": "Live Teabag Confirmed / Mode",
+      "notes": "Both large negative and positive numeric entries and slider drag clamp/display 0 in game; original saved confirm value is 1. Preserve saved defaults; UI endpoints are 0/0, not engine limits."
+    }
+  }
+}

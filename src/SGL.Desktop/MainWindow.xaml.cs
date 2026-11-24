@@ -14,6 +14,18 @@ public partial class MainWindow : Window
     readonly string dataRoot; readonly string[] args; readonly Dictionary<string, string> invalid = [];
     GameStore? store; GameSnapshot? snapshot; History? history; JsonObject? payload, opened; string? selectedId, openedArchiveHash; bool loading, dirty; string? lastBackup;
     bool changingSettingsCategory;
+    string? ruleContextId;
+    RuleContext CurrentRule => new(ruleContextId ?? Configuration.Rules(payload!)[0].Id, (RulePhase.SelectedItem as RuleContext)?.Name ?? "Standard Rules");
+    void RulePhaseChanged(object s, SelectionChangedEventArgs e)
+    {
+        if (loading || payload == null || RulePhase.SelectedItem is not RuleContext rule) return;
+        if (invalid.Count > 0)
+        {
+            loading = true; RulePhase.SelectedValue = ruleContextId; loading = false;
+            Status.Text = "Correct invalid values before switching rule phase."; return;
+        }
+        ruleContextId = rule.Id; Render(); SettingsScroll?.ScrollToTop();
+    }
     string settingsCategoryBeforeSearch = "Players";
     string HistoryDirectory => Path.Combine(dataRoot, "Profiles", Json.Hash(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(Folder.Text).ToUpperInvariant()))[..16], "History");
     public MainWindow(string[] args)
@@ -155,6 +167,10 @@ public partial class MainWindow : Window
         payload = Configuration.Clone(p);
         opened = Configuration.Clone(p);
         selectedId = id;
+        var rules = Configuration.Rules(payload);
+        ruleContextId = rules[0].Id;
+        RulePhase.ItemsSource = rules;
+        RulePhase.SelectedValue = ruleContextId;
         if (id == null)
             editorShareId = Guid.NewGuid().ToString("N");
         openedArchiveHash = snapshot?.Modes.SingleOrDefault(m => m.Id == id)?.ArchiveHash;
@@ -248,7 +264,7 @@ public partial class MainWindow : Window
         string query = SettingsSearch?.Text.Trim() ?? "";
         if (query.Length > 0)
         {
-            var matches = Configuration.Fields.Where(f => SettingSearch.Matches(f, query)).ToArray();
+            var matches = GamemodeUi.Fields(payload, CurrentRule).Where(f => SettingSearch.Matches(f, query)).ToArray();
             bool loadout = SettingSearch.LoadoutMatches(query);
             int count = matches.Length + (loadout ? 3 : 0);
             if (SettingsSearchStatus != null) SettingsSearchStatus.Text = $"{count} matching setting{(count == 1 ? "" : "s")} across all categories";
@@ -267,16 +283,16 @@ public partial class MainWindow : Window
         {
             RenderLoadout();
         }
-        var fields = Configuration.Fields.Where(f => (string?)f["ui"]?["category"] == category).OrderBy(f => (int?)f["ui"]?["order"] ?? 0).ToArray();
+        var fields = GamemodeUi.Fields(payload, CurrentRule).Where(f => (string?)f["ui"]?["category"] == category).OrderBy(f => (int?)f["ui"]?["order"] ?? 0).ToArray();
         if (fields.Length == 0)
-            Rows.Children.Add(new TextBlock { Text = "No controls exposed in this category yet. The original base settings are preserved.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16) });
+            Rows.Children.Add(new TextBlock { Text = "No settings in this category for this base mode.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16) });
         foreach (var f in fields)
             RenderField(f);
     }
     void RenderField(JsonObject f)
     {
         string id = (string)f["id"]!, label = (string?)f["ui"]?["label"] ?? (string)f["label"]!;
-        var value = Configuration.Value(payload!, f);
+        var value = Configuration.Value(payload!, f, ruleContextId);
         bool boolean = (string)f["type"]! == "boolean";
         var panel = new StackPanel { Margin = new Thickness(14, 10, 14, 10) };
         var border = new Border { Background = Brush("#1C1C3C"), BorderBrush = Brush("#494264"), BorderThickness = new Thickness(0, 0, 0, 1), Child = panel, Margin = new Thickness(0, 0, 0, 6) };
@@ -292,13 +308,15 @@ public partial class MainWindow : Window
         var help = new TextBlock { FontSize = 12, Foreground = Brush("#B9B7D6"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 7, 0, 0) };
         void Describe()
         {
-            var v = Configuration.Value(payload!, f);
+            var v = Configuration.Value(payload!, f, ruleContextId);
             var notes = new List<string>();
             if (v == null)
                 notes.Add("Not present in this saved base");
-            if ((bool?)f["ui"]?["extra"] == true)
-                notes.Add("SGL extra · absent from the documented Standard Rules menu");
-            if (v != null && opened != null && !JsonNode.DeepEquals(v, Configuration.Value(opened, f)))
+            if (!GamemodeUi.InGame(payload!, f, CurrentRule.Name))
+                notes.Add("SGL extra · not shown in this base mode's " + CurrentRule.Name + " menu");
+            if (ruleContextId != null && Configuration.IsShared(payload!, f, ruleContextId))
+                notes.Add("Shared across rule phases");
+            if (v != null && opened != null && !JsonNode.DeepEquals(v, Configuration.Value(opened, f, ruleContextId)))
                 notes.Add("Changed from opened values");
             if (v != null && !boolean && double.TryParse(Text(v), CultureInfo.InvariantCulture, out var n) && f["ui"]?["min"] is JsonNode min && f["ui"]?["max"] is JsonNode max && (n < (double)min || n > (double)max))
                 notes.Add("Outside in-game range · " + min + "–" + max);
@@ -309,15 +327,15 @@ public partial class MainWindow : Window
             if (f["ui"]?["min"] != null)
                 help.Text += $"  In-game: {f["ui"]!["min"]}–{f["ui"]!["max"]}. SGL: {f["min"]}–{f["max"]}.";
             if (opened != null)
-                help.Text += "  Opened: " + Text(Configuration.Value(opened, f)) + ".";
+                help.Text += "  Opened: " + Text(Configuration.Value(opened, f, ruleContextId)) + ".";
         }
-        reset.Click += (s, e) => Run(() => { if (opened != null) { Configuration.Reset(payload!, opened, f); invalid.Remove(id); MarkDirty(); Render(); } });
+        reset.Click += (s, e) => Run(() => { if (opened != null) { Configuration.Reset(payload!, opened, f, ruleContextId); invalid.Remove(id); MarkDirty(); Render(); } });
         if (boolean)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal };
             foreach (bool choice in new[] { false, true })
             {
-                bool blocked = choice && id == "weaponDrops" && Configuration.Value(payload!, Configuration.Fields.Single(n => (string)n["id"]! == "infiniteReserves"))?.GetValue<bool>() == true;
+                bool blocked = choice && id == "weaponDrops" && Configuration.Value(payload!, Configuration.Fields.Single(n => (string)n["id"]! == "infiniteReserves"), ruleContextId)?.GetValue<bool>() == true;
                 var button = new Button { Content = choice ? "ON" : "OFF", MinWidth = 85, IsEnabled = value != null && !blocked };
                 AutomationProperties.SetName(button, label + (choice ? " On" : " Off"));
                 if (value != null && bool.Parse(Text(value)) == choice)
@@ -325,7 +343,7 @@ public partial class MainWindow : Window
                     button.Background = Brush("#F3BE4F");
                     button.Foreground = Brush("#171027");
                 }
-                button.Click += (s, e) => Run(() => { Configuration.Set(payload!, f, choice.ToString()); MarkDirty(); Render(); });
+                button.Click += (s, e) => Run(() => { Configuration.Set(payload!, f, choice.ToString(), ruleContextId); MarkDirty(); Render(); });
                 row.Children.Add(button);
             }
             DockPanel.SetDock(row, Dock.Right);
@@ -340,7 +358,7 @@ public partial class MainWindow : Window
             var pick = new ComboBox { ItemsSource = choices, DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedValue = Text(value), IsEnabled = value != null, Width = 240 };
             AutomationProperties.SetName(pick, label);
             AutomationProperties.SetAutomationId(pick, id);
-            pick.SelectionChanged += (s, e) => Run(() => { if (pick.SelectedItem is Item item) { Configuration.Set(payload!, f, item.Id); MarkDirty(); Describe(); } });
+            pick.SelectionChanged += (s, e) => Run(() => { if (pick.SelectedItem is Item item) { Configuration.Set(payload!, f, item.Id, ruleContextId); MarkDirty(); Describe(); } });
             DockPanel.SetDock(pick, Dock.Right);
             head.Children.Insert(head.Children.Count - 1, pick);
         }
@@ -367,7 +385,7 @@ public partial class MainWindow : Window
             slider.Value = Math.Clamp(initial, lower, upper);
             bool syncing = false;
             slider.ValueChanged += (s, e) => { if (!syncing) input.Text = e.NewValue.ToString(CultureInfo.InvariantCulture); };
-            input.TextChanged += (s, e) => { if (loading) return; try { Configuration.Set(payload!, f, input.Text); invalid.Remove(id); input.BorderBrush = Brush("#69618E"); syncing = true; slider.Value = Math.Clamp(double.Parse(input.Text, CultureInfo.InvariantCulture), lower, upper); syncing = false; MarkDirty(); Describe(); } catch { invalid[id] = input.Text; input.BorderBrush = Brush("#FF9696"); DirtyLabel.Text = "Correct invalid values before saving"; } };
+            input.TextChanged += (s, e) => { if (loading) return; try { Configuration.Set(payload!, f, input.Text, ruleContextId); invalid.Remove(id); input.BorderBrush = Brush("#69618E"); syncing = true; slider.Value = Math.Clamp(double.Parse(input.Text, CultureInfo.InvariantCulture), lower, upper); syncing = false; MarkDirty(); Describe(); } catch { invalid[id] = input.Text; input.BorderBrush = Brush("#FF9696"); DirtyLabel.Text = "Correct invalid values before saving"; } };
             row.Children.Add(slider);
             row.Children.Add(input);
             DockPanel.SetDock(row, Dock.Right);
@@ -383,7 +401,7 @@ public partial class MainWindow : Window
     {
         Rows.Children.Add(loadoutTools);
         Rows.Children.Add(new TextBlock { Text = "Custom starting loadout · SGL extra", Foreground = Brush("#F3BE4F"), Margin = new Thickness(0, 0, 0, 14) });
-        var ids = Configuration.Loadout(payload!);
+        var ids = Configuration.Loadout(payload!, ruleContextId);
         Rows.Children.Add(new TextBlock { Text = ids == null ? "This mode uses base loadouts. Choosing all three items will set a custom starting loadout." : "Explicit loadout edits replace starting-item selection. Other rules remain unchanged.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
         ComboBox[] picks = new ComboBox[3];
         for (int i = 0; i < 3; i++)
@@ -393,12 +411,12 @@ public partial class MainWindow : Window
             var choices = Configuration.Catalog[i == 2 ? "equipment" : "weapons"]!.AsArray().Select(n => new Item((string)n!["id"]!, (string)n["name"]!)).ToArray();
             var pick = new ComboBox { ItemsSource = choices, DisplayMemberPath = "Name", SelectedValuePath = "Id", SelectedValue = ids?[i] };
             picks[i] = pick;
-            pick.SelectionChanged += (s, e) => { if (picks.All(p => p?.SelectedItem is Item)) { Configuration.SetLoadout(payload!, picks.Select(p => ((Item)p.SelectedItem).Id).ToArray()); MarkDirty(); } };
+            pick.SelectionChanged += (s, e) => { if (picks.All(p => p?.SelectedItem is Item)) { Configuration.SetLoadout(payload!, picks.Select(p => ((Item)p.SelectedItem).Id).ToArray(), ruleContextId); MarkDirty(); } };
             Rows.Children.Add(pick);
         }
     }
     sealed record Item(string Id, string Name);
-    void Randomize(object s, RoutedEventArgs e) => Run(() => { if (payload == null) return; var ids = Configuration.Loadout(payload) ?? ["", "", ""]; bool[] locks = [LockPrimary.IsChecked == true, LockSecondary.IsChecked == true, LockEquipment.IsChecked == true]; for (int i = 0; i < 3; i++) if (!locks[i]) { var pool = Configuration.Catalog[i == 2 ? "equipment" : "weapons"]!.AsArray().Select(n => (string)n!["id"]!).Where(id => i == 2 || id != ids[1 - i]).ToArray(); ids[i] = pool[Random.Shared.Next(pool.Length)]; } Configuration.SetLoadout(payload, ids); MarkDirty(); SettingsSearch.Clear(); Categories.SelectedItem = "Loadouts"; Render(); });
+    void Randomize(object s, RoutedEventArgs e) => Run(() => { if (payload == null) return; var ids = Configuration.Loadout(payload, ruleContextId) ?? ["", "", ""]; bool[] locks = [LockPrimary.IsChecked == true, LockSecondary.IsChecked == true, LockEquipment.IsChecked == true]; for (int i = 0; i < 3; i++) if (!locks[i]) { var pool = Configuration.Catalog[i == 2 ? "equipment" : "weapons"]!.AsArray().Select(n => (string)n!["id"]!).Where(id => i == 2 || id != ids[1 - i]).ToArray(); ids[i] = pool[Random.Shared.Next(pool.Length)]; } Configuration.SetLoadout(payload, ids, ruleContextId); MarkDirty(); SettingsSearch.Clear(); Categories.SelectedItem = "Loadouts"; Render(); });
     void ResetOpened(object s, RoutedEventArgs e)
     {
         if (opened != null && Confirm("Reset all editor changes to the values when this mode was opened?"))
@@ -425,7 +443,9 @@ public partial class MainWindow : Window
             throw new IOException("This mode changed outside SGL after you opened it. Reopen it, or duplicate your edited mode before saving.");
         if (Modes.GameRunning())
             throw new InvalidOperationException("Close Splitgate before saving to the game. You can keep editing while it runs.");
-        string outside = string.Join(", ", Configuration.Fields.Where(f => f["ui"]?["min"] != null && Configuration.Value(payload!, f) is JsonNode v && double.TryParse(Text(v), CultureInfo.InvariantCulture, out var n) && (n < (double)f["ui"]!["min"]! || n > (double)f["ui"]!["max"]!)).Select(f => (string)f["ui"]!["label"]!));
+        string outside = string.Join(", ", Configuration.Rules(payload!).SelectMany(rule => GamemodeUi.Fields(payload!, rule)
+            .Where(f => f["ui"]?["min"] != null && Configuration.Value(payload!, f, rule.Id) is JsonNode v && double.TryParse(Text(v), CultureInfo.InvariantCulture, out var n) && (n < (double)f["ui"]!["min"]! || n > (double)f["ui"]!["max"]!))
+            .Select(f => rule.Name + ": " + (string)f["ui"]!["label"]!)));
         if (outside.Length > 0 && !Confirm("Outside documented in-game slider range: " + outside + ". The game may clamp or ignore these values. Save anyway?"))
             return;
         if (history == null)

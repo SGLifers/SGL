@@ -16,8 +16,8 @@ The release targets Windows x64. Windows 10/11 compatibility needs testing on ea
 
 ## Features
 
-- Native WPF editor with all 115 documented advanced settings and five SGL extras (120 controls). Includes Bots, Spawning, enum selectors and expanded numeric inputs. See the [settings audit](docs/settings-audit.md).
-- Create modes from 33 saved bases, including KOTH, TDM, SWAT, Arena Royale, Race, Gun Game, FFA, multi-team and event variants. Each retains its saved objective rules, team sizes and starting loadouts. See the [base template list](docs/base-modes.md). Six community presets include Sticky Fists and kill-refill 1v1 modes.
+- Native WPF editor with 180 settings, including 60 objective-specific controls captured in-game. Includes separate Standard Rules/Tiebreaker editing, per-base SGL-extra markers, Bots, Spawning, hover descriptions, in-game slider limits and expanded numeric inputs. See the [settings audit](docs/settings-audit.md).
+- Create modes from all 88 View All bases, including KOTH, TDM, SWAT, Arena Royale, Race, Gun Game, FFA, multi-team and event variants. Each retains its saved objective rules, team sizes and starting loadouts. See the [base template list](docs/base-modes.md). Six community presets include Sticky Fists and kill-refill 1v1 modes.
 - Open existing modes, preserve unexposed options, edit starting loadouts, duplicate and rename.
 - Randomize loadouts from the Loadouts page, with per-slot locks. Editor markers distinguish opened values from documented in-game ranges.
 - Export individual modes as JSON.

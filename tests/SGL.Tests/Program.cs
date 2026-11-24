@@ -8,6 +8,7 @@ int assertions = 0;
 void Check(bool test, string message) { assertions++; if (!test) throw new Exception(message); }
 void Reject(Action action, string message) { bool failed = false; try { action(); } catch { failed = true; } Check(failed, message); }
 BaseModeChecks.Run(Check);
+GamemodeAuditChecks.Run(Check);
 BatchActionChecks.Run(Check);
 LibraryBrowseChecks.Run(Check);
 InstalledPreviewChecks.Run(Check);
@@ -149,7 +150,7 @@ foreach (string basis in new[] { "koth", "tdm", "swat" })
 }
 var documented = Json.Read(Modes.Resource("settings-reference.json"))["settings"]!.AsArray();
 Check(documented.Count == 115, "Documented reference changed without an audit");
-Check(Configuration.Fields.Count(f => (bool?)f["ui"]?["extra"] == false) == 115, "Standard setting coverage is incomplete");
+Check(Configuration.Fields.Count(f => (bool?)f["ui"]?["extra"] == false) == 175, "Standard and mode-specific setting coverage is incomplete");
 foreach (var reference in documented)
 {
     var field = Configuration.Fields.Single(f => (string?)f["ui"]?["referenceId"] == (string?)reference!["id"]);
