@@ -5,7 +5,11 @@ if (!files.ContainsKey("ue4ss/UE4SS.dll.orig") || files.ContainsKey("ue4ss/Mods/
 Console.WriteLine("Verified real pinned UE4SS and Splitgate patch package in isolated staging; no game DLL loaded or game files changed.");
 Console.WriteLine("Patched DLL SHA256: " + Json.Hash(files["ue4ss/UE4SS.dll"]));
 Console.WriteLine("Prepared runtime files: " + files.Count);
-var bundle = await Mods.Catalog(cache, true);
+// Verify the exact compatibility package already validated by Prepare. Discovery
+// is covered independently by core/desktop tests; CI must not depend on an
+// anonymous GitHub API quota shared with other hosted runners.
+var pinnedFiles = Mods.ReadZip(File.ReadAllBytes(Path.Combine(cache, Mods.BootstrapHash.ToUpperInvariant() + ".zip")));
+var bundle = new ModBundle(new("v1.1.0", Mods.BootstrapUrl, Mods.BootstrapHash, Mods.Discover(pinnedFiles)), pinnedFiles);
 if (!bundle.Release.Mods.Any(m => m.Id == "BotChatter") || !bundle.Release.Mods.Any(m => m.Id == "MapEditorBudgetMod")) throw new Exception("Published catalog lost the initial mods.");
 string fixture = Path.Combine(Path.GetTempPath(), "SGL-real-mod-files-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(fixture);
