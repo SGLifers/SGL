@@ -12,7 +12,7 @@ Expand **Configure rotation** to copy/delete presets, restore a built-in preset,
 
 ## Lobby announcements
 
-The lobby-code field is implemented, but the included endpoint is deliberately empty. It cannot announce anything until the separate [SGL Discord Bot](https://github.com/SGLifers/SGL-Discord-Bot) is deployed and SGL is connected to it. No bot token or AWS credential is stored in the desktop application.
+SGL connects to the deployed [SGL Discord Bot](https://github.com/SGLifers/SGL-Discord-Bot). Hosts sign in with Discord and must have the configured host role. Announcements currently target the configured test server and channel. No bot token or AWS credential is stored in the desktop application.
 
 After connection, sign in with Discord, optionally enter a lobby name, then enter or paste your six-character lobby code. Choose **Open Lobby** to post the announcement to Discord. Typing, changing tabs and spinning never send a message. The code accepts letters or digits and is normalized to uppercase. Names are limited to 80 characters on one line. The bot verifies the SGL session, server membership and configured host role/allowlist before posting to the operator-selected channel.
 
