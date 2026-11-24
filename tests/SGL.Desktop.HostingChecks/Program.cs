@@ -28,7 +28,7 @@ static class HostingDesktopChecks
         var resources = XDocument.Load("src/SGL.Desktop/App.xaml").Root!.Elements().Single();
         app.Resources = (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(new XElement(XName.Get("ResourceDictionary", "http://schemas.microsoft.com/winfx/2006/xaml/presentation"), new XAttribute(XNamespace.Xmlns + "x", "http://schemas.microsoft.com/winfx/2006/xaml"), new XAttribute(XNamespace.Xmlns + "local", "clr-namespace:SGL.Desktop;assembly=SGL"), resources.Elements()).ToString());
         var task = Run(); var frame = new DispatcherFrame(); task.ContinueWith(_ => app.Dispatcher.BeginInvoke(() => frame.Continue = false)); Dispatcher.PushFrame(frame); task.GetAwaiter().GetResult(); app.Shutdown();
-        Console.WriteLine("Passed Hosting desktop checks: spinner presets/editing/persistence, five sections, debounce, identity changes, duplicate protection, retry identity, canceled/stale responses, deployment-disabled state and narrow layout. No real game or Discord writes.");
+        Console.WriteLine("Passed Hosting desktop checks: spinner presets/editing/persistence, five sections, explicit open/close actions, identity changes, duplicate protection, manual retry identity, canceled/stale responses, deployment-disabled state and narrow layout. No real game or Discord writes.");
     }
     static async Task Run()
     {
@@ -60,7 +60,7 @@ static class HostingDesktopChecks
         var lobbyName = Control<TextBox>(w, "HostingLobbyName");
         Check(code.MaxLength == 6 && code.Width == 160 && lobbyName.MaxLength == 80, "Lobby inputs have incorrect limits or code width");
         code.Text = "ABC123";
-        Check(!Get<DispatcherTimer>(w, "hostingAnnouncementTimer").IsEnabled && Control<TextBlock>(w, "HostingAnnouncementStatus").Text.Contains("after deployment"), "Unconfigured app attempted to broadcast");
+        Check(!Control<Button>(w, "HostingOpenLobbyButton").IsEnabled && !Control<Button>(w, "HostingCloseLobbyButton").IsEnabled, "Unconfigured app enabled lobby controls");
         using var http = new FakeHosting(); Set(w, "hostingTransport", http); Set(w, "hostingEndpointOverride", "https://bot.example/");
         void Session(string actor, char tokenLetter = 't')
         {
@@ -69,24 +69,44 @@ static class HostingDesktopChecks
             Call(w, "RefreshSharingAccount");
         }
         Session(new string('a', 32)); Check(code.Text == "", "Sign-in replayed an old lobby code");
+        var open = Control<Button>(w, "HostingOpenLobbyButton");
+        var close = Control<Button>(w, "HostingCloseLobbyButton");
         lobbyName.Text = "Friday night";
-        code.Text = "ABC12"; await Task.Delay(2100); Check(http.Calls.Count == 0, "Incomplete five-character code was announced");
-        code.Text = "ABC123"; await Task.Delay(200); Check(http.Calls.Count == 0, "Code broadcast before debounce");
-        code.Text = "ABC124"; lobbyName.Text = "Friday games"; await Task.Delay(2300);
-        Check(http.Calls.Count == 1 && (string?)http.Calls[0]["code"] == "ABC124", "Typing broadcast partial/stale codes");
-        Check((string?)http.Calls[0]["lobbyName"] == "Friday games", "Announcement omitted the latest lobby name");
-        Check(Control<TextBlock>(w, "HostingAnnouncementStatus").Text == "Lobby announced in Discord.", "Announcement confirmation missing");
-        code.Text = " ABC124 "; await Task.Delay(2100); Check(http.Calls.Count == 1, "Normalized duplicate code was announced twice");
-        lobbyName.Text = "Next lobby"; await Task.Delay(2100); Check(http.Calls.Count == 1, "Name edit duplicated an announced lobby");
-        Session(new string('a', 32), 'u'); Check(code.Text == "" && lobbyName.Text == "", "Reauthentication retained lobby details from an old session");
+        code.Text = "ABC12"; Check(!open.IsEnabled && !close.IsEnabled, "Incomplete code enabled lobby controls");
+        code.Text = "ABC123"; lobbyName.Text = "Friday games"; await Task.Delay(2200);
+        Check(http.Calls.Count == 0 && open.IsEnabled && close.IsEnabled, "Typing announced a lobby or failed to enable buttons");
+        await (Task)Call(w, "SendHostingAnnouncement", "open")!;
+        Check(http.Calls.Count == 1 && (string?)http.Calls[0]["code"] == "ABC123" && (string?)http.Calls[0]["action"] == "open", "Open Lobby did not send the chosen code");
+        Check((string?)http.Calls[0]["lobbyName"] == "Friday games", "Open Lobby omitted the latest lobby name");
+        Check(!open.IsEnabled && close.IsEnabled && code.IsReadOnly && lobbyName.IsReadOnly, "Open lobby did not lock its details");
+        await (Task)Call(w, "SendHostingAnnouncement", "open")!;
+        Check(http.Calls.Count == 1, "Repeated Open Lobby created another request");
+        await (Task)Call(w, "SendHostingAnnouncement", "close")!;
+        Check((string?)http.Calls[1]["action"] == "close" && (string?)http.Calls[1]["code"] == "ABC123", "Close Lobby targeted the wrong action/code");
+        Check(Control<TextBlock>(w, "HostingAnnouncementStatus").Text == "Lobby closed in Discord." && open.IsEnabled && !code.IsReadOnly, "Close confirmation or field unlock missing");
+        await (Task)Call(w, "SendHostingAnnouncement", "open")!;
+        Check((string?)http.Calls[0]["requestId"] != (string?)http.Calls[2]["requestId"], "Reopening reused an old open request identity");
+        Session(new string('a', 32), 'u'); Check(code.Text == "" && lobbyName.Text == "" && !code.IsReadOnly, "Reauthentication retained lobby details from an old session");
         Session(new string('b', 32)); Check(code.Text == "", "Account switch retained another host's code");
-        code.Text = "RETRY1"; http.RateLimitOnce = true; await (Task)Call(w, "SendHostingAnnouncement")!; await Task.Delay(1200);
+        code.Text = "RETRY1"; http.RateLimitOnce = true;
+        await (Task)Call(w, "SendHostingAnnouncement", "open")!; await Task.Delay(1200);
+        Check(http.Calls.Count(c => (string?)c["code"] == "RETRY1") == 1, "A failed lobby request retried without a button click");
+        await (Task)Call(w, "SendHostingAnnouncement", "open")!;
         var retries = http.Calls.Where(c => (string?)c["code"] == "RETRY1").ToArray();
-        Check(retries.Length == 2 && (string?)retries[0]["requestId"] == (string?)retries[1]["requestId"], "Automatic retry changed its request identity");
+        Check(retries.Length == 2 && (string?)retries[0]["requestId"] == (string?)retries[1]["requestId"], "Manual retry changed its request identity");
+        await (Task)Call(w, "SendHostingAnnouncement", "close")!;
         http.Hold = new TaskCompletionSource<HttpResponseMessage>(); code.Text = "SLOW12";
-        var pending = (Task)Call(w, "SendHostingAnnouncement")!; await Task.Delay(20); code.Clear();
+        var pending = (Task)Call(w, "SendHostingAnnouncement", "open")!; await Task.Delay(20);
+        Check(!open.IsEnabled && !close.IsEnabled && code.IsReadOnly, "In-flight lobby request left controls enabled");
+        code.Clear();
         http.Hold.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"status\":\"sent\"}") }); await pending; http.Hold = null;
-        Check(Control<TextBlock>(w, "HostingAnnouncementStatus").Text.StartsWith("No announcement pending"), "Stale response replaced the cleared-code status");
+        Check(Control<TextBlock>(w, "HostingAnnouncementStatus").Text.StartsWith("Enter your lobby code"), "Stale response replaced the cleared-code status");
+        http.Hold = new TaskCompletionSource<HttpResponseMessage>(); code.Text = "SLOW13";
+        pending = (Task)Call(w, "SendHostingAnnouncement", "open")!; await Task.Delay(20);
+        Session(new string('c', 32));
+        http.Hold.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"status\":\"sent\"}") }); await pending; http.Hold = null;
+        Check(code.Text == "" && !open.IsEnabled && !close.IsEnabled && !code.IsReadOnly, "Late response crossed a session change");
+        lobbyName.Text = "Friday games"; code.Text = "ABC123";
         Check(Control<Button>(w, "HostingSignInButton").Visibility == Visibility.Collapsed, "Sign-in button remained visible for a signed-in host");
         Call(w, "RenderHostingRotation");
         var rootElement = (FrameworkElement)w.Content; w.Content = null;
@@ -105,7 +125,8 @@ static class HostingDesktopChecks
             Calls.Add(Json.Read(await request.Content!.ReadAsStringAsync()).AsObject());
             if (Hold != null) return await Hold.Task;
             if (RateLimitOnce) { RateLimitOnce = false; return new(HttpStatusCode.TooManyRequests) { Content = new StringContent("{\"retryAfter\":1}") }; }
-            return new(HttpStatusCode.OK) { Content = new StringContent("{\"status\":\"sent\",\"messageId\":\"123456789012345678\"}") };
+            bool closed = (string?)Calls[^1]["action"] == "close";
+            return new(HttpStatusCode.OK) { Content = new StringContent(new JsonObject { ["status"] = closed ? "closed" : "sent", ["lobbyStatus"] = closed ? "closed" : "open", ["messageId"] = "123456789012345678" }.ToJsonString()) };
         }
     }
 }

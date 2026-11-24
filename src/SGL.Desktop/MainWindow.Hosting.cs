@@ -3,7 +3,6 @@ using System.Net.Http;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Threading;
 using SGL.Core;
 namespace SGL.Desktop;
 
@@ -13,14 +12,14 @@ public partial class MainWindow
     readonly HostingSpinner hostingSpinner = new();
     HostingSpin? hostingResult;
     bool hostingReady, renderingHosting;
-    readonly DispatcherTimer hostingAnnouncementTimer = new() { Interval = TimeSpan.FromSeconds(2) };
     CancellationTokenSource? hostingAnnouncementRequest;
     HttpMessageHandler? hostingTransport = null;
     string? hostingEndpointOverride = null;
     string? hostingActor;
     string? hostingSessionKey;
-    string hostingSentCode = "";
-    int hostingGeneration, hostingAttempts;
+    string hostingOpenCode = "";
+    bool hostingLobbyBusy;
+    int hostingGeneration;
     readonly Dictionary<string, string> hostingRequestIds = [];
     string HostingRotationsPath => Path.Combine(dataRoot, "Hosting", "rotations.json");
     HostingRotation CurrentHostingRotation => hostingRotations[(string)HostingPreset.SelectedItem];
@@ -43,8 +42,7 @@ public partial class MainWindow
         renderingHosting = false; hostingReady = true;
         RenderHostingRotation(); RefreshHostingAccount();
         if (notice != null) HostingSpinStatus.Text = notice;
-        hostingAnnouncementTimer.Tick += async (_, _) => { hostingAnnouncementTimer.Stop(); await SendHostingAnnouncement(); };
-        Closed += (_, _) => { hostingAnnouncementTimer.Stop(); hostingAnnouncementRequest?.Cancel(); };
+        Closed += (_, _) => hostingAnnouncementRequest?.Cancel();
     }
     void RefreshHostingAccount()
     {
@@ -54,14 +52,15 @@ public partial class MainWindow
         string? sessionKey = (string?)session?["token"] is string token ? SGL.Core.Json.Hash(System.Text.Encoding.UTF8.GetBytes(token)) : null;
         if (actor != hostingActor || sessionKey != hostingSessionKey)
         {
-            hostingActor = actor; hostingSessionKey = sessionKey; hostingRequestIds.Clear(); hostingSentCode = "";
-            hostingGeneration++; hostingAnnouncementTimer.Stop(); hostingAnnouncementRequest?.Cancel();
+            hostingActor = actor; hostingSessionKey = sessionKey; hostingRequestIds.Clear(); hostingOpenCode = "";
+            hostingGeneration++; hostingAnnouncementRequest?.Cancel(); hostingAnnouncementRequest = null; hostingLobbyBusy = false;
             HostingLobbyCode.Clear();
             HostingLobbyName.Clear();
         }
         HostingAccount.Text = actor == null ? "Not signed in" : "Signed in as " + (string?)session?["user"]?["displayName"];
         HostingSignInButton.Visibility = actor == null ? Visibility.Visible : Visibility.Collapsed;
-        if (HostingLobbyCode.Text.Length == 0) HostingAnnouncementStatus.Text = string.IsNullOrWhiteSpace(HostingEndpoint) ? "Lobby announcements will be available after the bot is deployed." : actor == null ? "Sign in with Discord to announce your lobby." : "Enter your lobby code to announce it.";
+        if (HostingLobbyCode.Text.Length == 0) HostingAnnouncementStatus.Text = string.IsNullOrWhiteSpace(HostingEndpoint) ? "Lobby announcements will be available after the bot is deployed." : actor == null ? "Sign in with Discord to announce your lobby." : "Enter your lobby code, then choose Open Lobby.";
+        RefreshHostingLobbyButtons();
     }
     async void HostingSignIn(object sender, RoutedEventArgs e)
     {
@@ -72,19 +71,28 @@ public partial class MainWindow
     void HostingCodeChanged(object sender, TextChangedEventArgs e)
     {
         if (!hostingReady) return;
-        hostingGeneration++; hostingAttempts = 0; hostingAnnouncementTimer.Stop(); hostingAnnouncementRequest?.Cancel();
-        if (string.IsNullOrWhiteSpace(HostingLobbyCode.Text)) { HostingAnnouncementStatus.Text = "No announcement pending. Previously sent messages remain in Discord."; return; }
-        string code;
-        try { code = HostingAnnouncements.Code(HostingLobbyCode.Text); HostingAnnouncements.LobbyName(HostingLobbyName.Text); } catch (Exception error) { HostingAnnouncementStatus.Text = error.Message; return; }
+        hostingGeneration++; hostingAnnouncementRequest?.Cancel();
+        RefreshHostingLobbyButtons();
+        if (string.IsNullOrWhiteSpace(HostingLobbyCode.Text)) { HostingAnnouncementStatus.Text = "Enter your lobby code, then choose Open Lobby. Existing Discord announcements are unchanged."; return; }
+        try { HostingAnnouncements.Code(HostingLobbyCode.Text); HostingAnnouncements.LobbyName(HostingLobbyName.Text); } catch (Exception error) { HostingAnnouncementStatus.Text = error.Message; return; }
         if (string.IsNullOrWhiteSpace(HostingEndpoint)) { HostingAnnouncementStatus.Text = "Not announced. The bot endpoint will be connected after deployment."; return; }
-        if (hostingActor == null) { HostingAnnouncementStatus.Text = "Sign in with Discord, then enter the lobby code again."; return; }
-        if (hostingSentCode == code) { HostingAnnouncementStatus.Text = "This lobby code has already been announced."; return; }
-        HostingAnnouncementStatus.Text = "Announcing this lobby after you stop typing…";
-        hostingAnnouncementTimer.Interval = TimeSpan.FromSeconds(2); hostingAnnouncementTimer.Start();
+        if (hostingActor == null) { HostingAnnouncementStatus.Text = "Sign in with Discord to open or close your lobby announcement."; return; }
+        HostingAnnouncementStatus.Text = hostingOpenCode == "" ? "Ready. Choose Open Lobby to announce, or Close Lobby to close an existing announcement for this code." : "Lobby open in Discord. Choose Close Lobby when you finish hosting.";
     }
-    async Task SendHostingAnnouncement()
+    void RefreshHostingLobbyButtons()
     {
-        hostingAnnouncementTimer.Stop();
+        bool valid = false;
+        try { HostingAnnouncements.Code(HostingLobbyCode.Text); HostingAnnouncements.LobbyName(HostingLobbyName.Text); valid = true; } catch { }
+        bool available = valid && hostingActor != null && !string.IsNullOrWhiteSpace(HostingEndpoint) && !hostingLobbyBusy;
+        HostingOpenLobbyButton.IsEnabled = available && hostingOpenCode == "";
+        HostingCloseLobbyButton.IsEnabled = available;
+        HostingLobbyCode.IsReadOnly = HostingLobbyName.IsReadOnly = hostingLobbyBusy || hostingOpenCode != "";
+    }
+    async void HostingOpenLobby(object sender, RoutedEventArgs e) => await SendHostingAnnouncement("open");
+    async void HostingCloseLobby(object sender, RoutedEventArgs e) => await SendHostingAnnouncement("close");
+    async Task SendHostingAnnouncement(string action)
+    {
+        if (hostingLobbyBusy || action == "open" && hostingOpenCode != "") return;
         int generation = hostingGeneration;
         string code, lobbyName;
         try { code = HostingAnnouncements.Code(HostingLobbyCode.Text); lobbyName = HostingAnnouncements.LobbyName(HostingLobbyName.Text); } catch { return; }
@@ -92,18 +100,28 @@ public partial class MainWindow
         string? actor = (string?)session?["user"]?["id"], token = (string?)session?["token"];
         string endpoint = HostingEndpoint;
         if (actor == null || actor != hostingActor || token == null || string.IsNullOrWhiteSpace(endpoint)) { RefreshHostingAccount(); return; }
-        string key = actor + ":" + code + ":" + lobbyName;
+        string key = actor + ":" + action + ":" + code + (action == "open" ? ":" + lobbyName : "");
         if (!hostingRequestIds.TryGetValue(key, out string? requestId)) hostingRequestIds[key] = requestId = Guid.NewGuid().ToString("N");
         using var cancel = new CancellationTokenSource();
-        hostingAnnouncementRequest = cancel; hostingAttempts++;
-        HostingAnnouncementStatus.Text = "Announcing lobby…";
+        hostingAnnouncementRequest = cancel; hostingLobbyBusy = true; RefreshHostingLobbyButtons();
+        HostingAnnouncementStatus.Text = action == "open" ? "Opening lobby…" : "Closing lobby…";
         bool Current() => generation == hostingGeneration && actor == hostingActor && endpoint == HostingEndpoint && token == (string?)Session(LibraryRoot).Load()?["token"];
         try
         {
-            var result = await HostingAnnouncements.Announce(endpoint, token, code, requestId, cancel.Token, hostingTransport, lobbyName);
+            var result = await HostingAnnouncements.Announce(endpoint, token, code, requestId, cancel.Token, hostingTransport, lobbyName, action);
             if (!Current()) return;
-            hostingSentCode = code;
-            HostingAnnouncementStatus.Text = (string?)result["status"] == "duplicate" ? "This lobby is already announced in Discord." : "Lobby announced in Discord.";
+            bool closed = (string?)result["status"] == "closed" || (string?)result["lobbyStatus"] == "closed";
+            hostingOpenCode = closed ? "" : code;
+            if (closed)
+            {
+                foreach (string old in hostingRequestIds.Keys.Where(k => k.StartsWith(actor + ":open:" + code + ":", StringComparison.Ordinal)).ToArray()) hostingRequestIds.Remove(old);
+                HostingAnnouncementStatus.Text = "Lobby closed in Discord.";
+            }
+            else
+            {
+                hostingRequestIds.Remove(actor + ":close:" + code);
+                HostingAnnouncementStatus.Text = "Lobby open in Discord. Choose Close Lobby when you finish hosting.";
+            }
         }
         catch (OperationCanceledException) when (cancel.IsCancellationRequested) { }
         catch (HostingApiException error) when (error.Status == HttpStatusCode.Unauthorized)
@@ -114,14 +132,10 @@ public partial class MainWindow
         {
             if (!Current()) return;
             int retry = error is HostingApiException api ? api.RetryAfter : error is HttpRequestException or OperationCanceledException ? 15 : 0;
-            HostingAnnouncementStatus.Text = error is HostingApiException ? error.Message : "Announcement not confirmed. Check the Discord channel before retrying.";
-            if (retry > 0 && hostingAttempts < 3)
-            {
-                HostingAnnouncementStatus.Text += $" Retrying the current code in {retry} seconds.";
-                hostingAnnouncementTimer.Interval = TimeSpan.FromSeconds(retry); hostingAnnouncementTimer.Start();
-            }
+            HostingAnnouncementStatus.Text = error is HostingApiException ? error.Message : "Lobby request not confirmed. Check the Discord channel, then retry the same button.";
+            if (retry > 0) HostingAnnouncementStatus.Text += $" Wait {retry} seconds, then retry the same button.";
         }
-        finally { if (ReferenceEquals(hostingAnnouncementRequest, cancel)) hostingAnnouncementRequest = null; }
+        finally { if (ReferenceEquals(hostingAnnouncementRequest, cancel)) { hostingAnnouncementRequest = null; hostingLobbyBusy = false; RefreshHostingLobbyButtons(); } }
     }
     void HostingPresetChanged(object sender, SelectionChangedEventArgs e)
     {

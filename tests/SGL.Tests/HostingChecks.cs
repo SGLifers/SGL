@@ -46,7 +46,13 @@ static class HostingChecks
         var handler = new HostHandler();
         var response = await HostingAnnouncements.Announce("https://bot.example/api/", new string('t', 43), "abc123", new string('a', 32), handler: handler, lobbyName: " Friday night ");
         check((string?)response["status"] == "sent" && handler.Path == "/api/announcements", "Announcement route contract changed");
-        check(handler.Body!.AsObject().Count == 3 && (string?)handler.Body["code"] == "ABC123" && (string?)handler.Body["lobbyName"] == "Friday night" && handler.Authorization == "Bearer " + new string('t', 43), "Client lost the lobby name, sent spoofable identity or omitted authentication");
+        check(handler.Body!.AsObject().Count == 4 && (string?)handler.Body["action"] == "open" && (string?)handler.Body["code"] == "ABC123" && (string?)handler.Body["lobbyName"] == "Friday night" && handler.Authorization == "Bearer " + new string('t', 43), "Client lost the action/name, sent spoofable identity or omitted authentication");
+        handler.Reply = "{\"status\":\"closed\",\"messageId\":\"123456789012345678\",\"lobbyStatus\":\"closed\"}";
+        response = await HostingAnnouncements.Announce("https://bot.example", new string('t', 43), "ABC123", new string('b', 32), handler: handler, action: "close");
+        check((string?)response["status"] == "closed" && (string?)handler.Body["action"] == "close", "Close Lobby contract changed");
+        handler.Reply = "{\"status\":\"sent\"}";
+        try { await HostingAnnouncements.Announce("https://bot.example", new string('t', 43), "ABC123", new string('b', 32), handler: handler, action: "close"); check(false, "Close accepted an open response"); }
+        catch (IOException) { check(true, "Unconfirmed close rejected"); }
         handler.Status = HttpStatusCode.TooManyRequests; handler.Reply = "{\"error\":\"private token value\",\"retryAfter\":60}";
         try { await HostingAnnouncements.Announce("https://bot.example", new string('t', 43), "ABC123", new string('a', 32), handler: handler); check(false, "Rate limit was accepted"); }
         catch (HostingApiException error) { check(error.RetryAfter == 60 && !error.Message.Contains("private token"), "Upstream text leaked or retry delay lost"); }
