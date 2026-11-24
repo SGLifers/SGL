@@ -15,25 +15,33 @@ public static class HostingAnnouncements
     public static string Code(string text)
     {
         string code = text.Trim().ToUpperInvariant();
-        if (!Regex.IsMatch(code, @"\A[A-Z0-9][A-Z0-9-]{3,31}\z")) throw new InvalidDataException("Enter a lobby code using 4–32 letters, numbers or hyphens.");
+        if (!Regex.IsMatch(code, @"\A[A-Z0-9]{6}\z")) throw new InvalidDataException("Enter the six-character lobby code using letters or numbers.");
         return code;
+    }
+    public static string LobbyName(string text)
+    {
+        string name = text.Trim();
+        if (name.Length > 80 || name.Any(c => char.IsControl(c) || char.GetUnicodeCategory(c) is System.Globalization.UnicodeCategory.Format or System.Globalization.UnicodeCategory.LineSeparator or System.Globalization.UnicodeCategory.ParagraphSeparator))
+            throw new InvalidDataException("Use a lobby name up to 80 characters on one line.");
+        return name;
     }
     public static Uri Endpoint(string url)
     {
         if (!Uri.TryCreate(url.TrimEnd('/') + "/", UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.UserInfo != "" || uri.Query != "" || uri.Fragment != "" || !uri.IsDefaultPort) throw new InvalidDataException("The hosting service must use HTTPS without credentials, query parameters or a custom port.");
         return uri;
     }
-    public static async Task<JsonObject> Announce(string endpoint, string token, string code, string requestId, CancellationToken cancel = default, HttpMessageHandler? handler = null)
+    public static async Task<JsonObject> Announce(string endpoint, string token, string code, string requestId, CancellationToken cancel = default, HttpMessageHandler? handler = null, string lobbyName = "")
     {
         Uri root = Endpoint(endpoint);
         code = Code(code);
+        lobbyName = LobbyName(lobbyName);
         if (!Regex.IsMatch(requestId, @"\A[a-f0-9]{32}\z") || !Regex.IsMatch(token, @"\A[A-Za-z0-9_-]{32,512}\z")) throw new InvalidDataException("Invalid hosting session or request identity.");
         using var client = handler == null ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) : new HttpClient(handler, false);
         client.Timeout = TimeSpan.FromSeconds(20);
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(root, "announcements"));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.UserAgent.ParseAdd("SGL-Hosting/1.0");
-        request.Content = new StringContent(new JsonObject { ["code"] = code, ["requestId"] = requestId }.ToJsonString(), Encoding.UTF8, "application/json");
+        request.Content = new StringContent(new JsonObject { ["code"] = code, ["requestId"] = requestId, ["lobbyName"] = lobbyName }.ToJsonString(), Encoding.UTF8, "application/json");
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel);
         if (response.Content.Headers.ContentLength > 8192) throw new IOException("Invalid hosting response.");
         using var input = await response.Content.ReadAsStreamAsync(cancel);

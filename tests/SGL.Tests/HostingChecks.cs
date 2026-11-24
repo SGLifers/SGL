@@ -38,12 +38,15 @@ static class HostingChecks
         for (int i = 0; i < 30; i++) check(spinner.Spin(narrow).Map != null, "Overlapping map cooldown exhausted its pool");
         var none = original.Copy(); none.Assignments.Clear(); Reject(() => spinner.Spin(none), "Unlinked rotation produced a result");
         check(HostingAnnouncements.Code(" ab12cd ") == "AB12CD", "Lobby normalization failed");
-        foreach (string code in new[] { "abc", "@everyone", "ABC`12", "A\nB123", "X" + new string('A', 32) }) Reject(() => HostingAnnouncements.Code(code), "Unsafe lobby code accepted");
+        foreach (string code in new[] { "abc", "ABCDE", "ABCDEFG", "ABC-12", "@everyone", "ABC`12", "A\nB123", "X" + new string('A', 32) }) Reject(() => HostingAnnouncements.Code(code), "Invalid six-character lobby code accepted");
+        check(HostingAnnouncements.Code("a1b2c3") == "A1B2C3" && HostingAnnouncements.Code("123456") == "123456", "Six-character codes did not normalize");
+        check(HostingAnnouncements.LobbyName(" Friday night ") == "Friday night" && HostingAnnouncements.LobbyName("") == "", "Lobby name normalization failed");
+        foreach (string name in new[] { new string('x', 81), "one\ntwo", "hidden\u202ename", "one\u2028two" }) Reject(() => HostingAnnouncements.LobbyName(name), "Invalid lobby name accepted");
         foreach (string url in new[] { "http://bot.example", "https://user:secret@bot.example", "https://bot.example/?secret=value", "https://bot.example:444" }) Reject(() => HostingAnnouncements.Endpoint(url), "Unsafe hosting endpoint accepted");
         var handler = new HostHandler();
-        var response = await HostingAnnouncements.Announce("https://bot.example/api/", new string('t', 43), "abc123", new string('a', 32), handler: handler);
+        var response = await HostingAnnouncements.Announce("https://bot.example/api/", new string('t', 43), "abc123", new string('a', 32), handler: handler, lobbyName: " Friday night ");
         check((string?)response["status"] == "sent" && handler.Path == "/api/announcements", "Announcement route contract changed");
-        check(handler.Body!.AsObject().Count == 2 && (string?)handler.Body["code"] == "ABC123" && handler.Authorization == "Bearer " + new string('t', 43), "Client sent spoofable identity or omitted authentication");
+        check(handler.Body!.AsObject().Count == 3 && (string?)handler.Body["code"] == "ABC123" && (string?)handler.Body["lobbyName"] == "Friday night" && handler.Authorization == "Bearer " + new string('t', 43), "Client lost the lobby name, sent spoofable identity or omitted authentication");
         handler.Status = HttpStatusCode.TooManyRequests; handler.Reply = "{\"error\":\"private token value\",\"retryAfter\":60}";
         try { await HostingAnnouncements.Announce("https://bot.example", new string('t', 43), "ABC123", new string('a', 32), handler: handler); check(false, "Rate limit was accepted"); }
         catch (HostingApiException error) { check(error.RetryAfter == 60 && !error.Message.Contains("private token"), "Upstream text leaked or retry delay lost"); }

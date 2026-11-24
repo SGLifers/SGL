@@ -57,6 +57,7 @@ public partial class MainWindow
             hostingActor = actor; hostingSessionKey = sessionKey; hostingRequestIds.Clear(); hostingSentCode = "";
             hostingGeneration++; hostingAnnouncementTimer.Stop(); hostingAnnouncementRequest?.Cancel();
             HostingLobbyCode.Clear();
+            HostingLobbyName.Clear();
         }
         HostingAccount.Text = actor == null ? "Not signed in" : "Signed in as " + (string?)session?["user"]?["displayName"];
         HostingSignInButton.Visibility = actor == null ? Visibility.Visible : Visibility.Collapsed;
@@ -74,7 +75,7 @@ public partial class MainWindow
         hostingGeneration++; hostingAttempts = 0; hostingAnnouncementTimer.Stop(); hostingAnnouncementRequest?.Cancel();
         if (string.IsNullOrWhiteSpace(HostingLobbyCode.Text)) { HostingAnnouncementStatus.Text = "No announcement pending. Previously sent messages remain in Discord."; return; }
         string code;
-        try { code = HostingAnnouncements.Code(HostingLobbyCode.Text); } catch (Exception error) { HostingAnnouncementStatus.Text = error.Message; return; }
+        try { code = HostingAnnouncements.Code(HostingLobbyCode.Text); HostingAnnouncements.LobbyName(HostingLobbyName.Text); } catch (Exception error) { HostingAnnouncementStatus.Text = error.Message; return; }
         if (string.IsNullOrWhiteSpace(HostingEndpoint)) { HostingAnnouncementStatus.Text = "Not announced. The bot endpoint will be connected after deployment."; return; }
         if (hostingActor == null) { HostingAnnouncementStatus.Text = "Sign in with Discord, then enter the lobby code again."; return; }
         if (hostingSentCode == code) { HostingAnnouncementStatus.Text = "This lobby code has already been announced."; return; }
@@ -85,13 +86,13 @@ public partial class MainWindow
     {
         hostingAnnouncementTimer.Stop();
         int generation = hostingGeneration;
-        string code;
-        try { code = HostingAnnouncements.Code(HostingLobbyCode.Text); } catch { return; }
+        string code, lobbyName;
+        try { code = HostingAnnouncements.Code(HostingLobbyCode.Text); lobbyName = HostingAnnouncements.LobbyName(HostingLobbyName.Text); } catch { return; }
         var session = Session(LibraryRoot).Load();
         string? actor = (string?)session?["user"]?["id"], token = (string?)session?["token"];
         string endpoint = HostingEndpoint;
         if (actor == null || actor != hostingActor || token == null || string.IsNullOrWhiteSpace(endpoint)) { RefreshHostingAccount(); return; }
-        string key = actor + ":" + code;
+        string key = actor + ":" + code + ":" + lobbyName;
         if (!hostingRequestIds.TryGetValue(key, out string? requestId)) hostingRequestIds[key] = requestId = Guid.NewGuid().ToString("N");
         using var cancel = new CancellationTokenSource();
         hostingAnnouncementRequest = cancel; hostingAttempts++;
@@ -99,7 +100,7 @@ public partial class MainWindow
         bool Current() => generation == hostingGeneration && actor == hostingActor && endpoint == HostingEndpoint && token == (string?)Session(LibraryRoot).Load()?["token"];
         try
         {
-            var result = await HostingAnnouncements.Announce(endpoint, token, code, requestId, cancel.Token, hostingTransport);
+            var result = await HostingAnnouncements.Announce(endpoint, token, code, requestId, cancel.Token, hostingTransport, lobbyName);
             if (!Current()) return;
             hostingSentCode = code;
             HostingAnnouncementStatus.Text = (string?)result["status"] == "duplicate" ? "This lobby is already announced in Discord." : "Lobby announced in Discord.";

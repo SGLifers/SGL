@@ -56,6 +56,8 @@ static class HostingDesktopChecks
         Control<TextBox>(w, "HostingModesInput").Clear(); Call(w, "SaveHostingModes", w, new RoutedEventArgs());
         Check((string)presets.SelectedItem == "Friday event" && Control<TextBox>(w, "HostingModesInput").Text == "", "Invalid edit lost selection or input");
         var code = Control<TextBox>(w, "HostingLobbyCode");
+        var lobbyName = Control<TextBox>(w, "HostingLobbyName");
+        Check(code.MaxLength == 6 && code.Width == 160 && lobbyName.MaxLength == 80, "Lobby inputs have incorrect limits or code width");
         code.Text = "ABC123";
         Check(!Get<DispatcherTimer>(w, "hostingAnnouncementTimer").IsEnabled && Control<TextBlock>(w, "HostingAnnouncementStatus").Text.Contains("after deployment"), "Unconfigured app attempted to broadcast");
         using var http = new FakeHosting(); Set(w, "hostingTransport", http); Set(w, "hostingEndpointOverride", "https://bot.example/");
@@ -66,12 +68,16 @@ static class HostingDesktopChecks
             Call(w, "RefreshSharingAccount");
         }
         Session(new string('a', 32)); Check(code.Text == "", "Sign-in replayed an old lobby code");
+        lobbyName.Text = "Friday night";
+        code.Text = "ABC12"; await Task.Delay(2100); Check(http.Calls.Count == 0, "Incomplete five-character code was announced");
         code.Text = "ABC123"; await Task.Delay(200); Check(http.Calls.Count == 0, "Code broadcast before debounce");
-        code.Text = "ABC124"; await Task.Delay(2300);
+        code.Text = "ABC124"; lobbyName.Text = "Friday games"; await Task.Delay(2300);
         Check(http.Calls.Count == 1 && (string?)http.Calls[0]["code"] == "ABC124", "Typing broadcast partial/stale codes");
+        Check((string?)http.Calls[0]["lobbyName"] == "Friday games", "Announcement omitted the latest lobby name");
         Check(Control<TextBlock>(w, "HostingAnnouncementStatus").Text == "Lobby announced in Discord.", "Announcement confirmation missing");
         code.Text = " ABC124 "; await Task.Delay(2100); Check(http.Calls.Count == 1, "Normalized duplicate code was announced twice");
-        Session(new string('a', 32), 'u'); Check(code.Text == "", "Reauthentication retained a code from an old session");
+        lobbyName.Text = "Next lobby"; await Task.Delay(2100); Check(http.Calls.Count == 1, "Name edit duplicated an announced lobby");
+        Session(new string('a', 32), 'u'); Check(code.Text == "" && lobbyName.Text == "", "Reauthentication retained lobby details from an old session");
         Session(new string('b', 32)); Check(code.Text == "", "Account switch retained another host's code");
         code.Text = "RETRY1"; http.RateLimitOnce = true; await (Task)Call(w, "SendHostingAnnouncement")!; await Task.Delay(1200);
         var retries = http.Calls.Where(c => (string?)c["code"] == "RETRY1").ToArray();
@@ -87,7 +93,7 @@ static class HostingDesktopChecks
         render.Measure(new Size(1350, 900)); render.Arrange(new Rect(0, 0, 1350, 900)); render.UpdateLayout();
         var bitmap = new RenderTargetBitmap(1350, 900, 96, 96, PixelFormats.Pbgra32); bitmap.Render(render); var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); Directory.CreateDirectory("artifacts"); using (var file = File.Create("artifacts/sgl-hosting.png")) png.Save(file);
         render.Measure(new Size(1000, 700)); render.Arrange(new Rect(0, 0, 1000, 700)); render.UpdateLayout();
-        Check(code.ActualWidth < 850 && code.ActualWidth > 600, "Hosting exceeds narrow workspace");
+        Check(code.ActualWidth == 160 && lobbyName.ActualWidth > 350 && lobbyName.ActualWidth + code.ActualWidth < 850, "Lobby inputs exceed narrow workspace or the code box stretches");
         render.Child = null; w.Content = rootElement; w.Close();
     }
     sealed class FakeHosting : HttpMessageHandler
