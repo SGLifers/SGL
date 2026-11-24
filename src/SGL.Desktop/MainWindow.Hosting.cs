@@ -133,6 +133,11 @@ public partial class MainWindow
             if (!Current()) return;
             int retry = error is HostingApiException api ? api.RetryAfter : error is HttpRequestException or OperationCanceledException ? 15 : 0;
             HostingAnnouncementStatus.Text = error is HostingApiException ? error.Message : "Lobby request not confirmed. Check the Discord channel, then retry the same button.";
+            if (action == "close" && error is HostingApiException { Status: HttpStatusCode.NotFound })
+            {
+                hostingOpenCode = "";
+                HostingAnnouncementStatus.Text += " Check Discord; you can edit the lobby details.";
+            }
             if (retry > 0) HostingAnnouncementStatus.Text += $" Wait {retry} seconds, then retry the same button.";
         }
         finally { if (ReferenceEquals(hostingAnnouncementRequest, cancel)) { hostingAnnouncementRequest = null; hostingLobbyBusy = false; RefreshHostingLobbyButtons(); } }

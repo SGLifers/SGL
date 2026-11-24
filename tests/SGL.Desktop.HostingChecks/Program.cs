@@ -86,6 +86,9 @@ static class HostingDesktopChecks
         Check(Control<TextBlock>(w, "HostingAnnouncementStatus").Text == "Lobby closed in Discord." && open.IsEnabled && !code.IsReadOnly, "Close confirmation or field unlock missing");
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
         Check((string?)http.Calls[0]["requestId"] != (string?)http.Calls[2]["requestId"], "Reopening reused an old open request identity");
+        http.FailOnce = HttpStatusCode.NotFound;
+        await (Task)Call(w, "SendHostingAnnouncement", "close")!;
+        Check(open.IsEnabled && !code.IsReadOnly && Control<TextBlock>(w, "HostingAnnouncementStatus").Text.Contains("No recent announcement"), "Expired server receipt left lobby details permanently locked");
         Session(new string('a', 32), 'u'); Check(code.Text == "" && lobbyName.Text == "" && !code.IsReadOnly, "Reauthentication retained lobby details from an old session");
         Session(new string('b', 32)); Check(code.Text == "", "Account switch retained another host's code");
         code.Text = "RETRY1"; http.RateLimitOnce = true;
@@ -119,11 +122,12 @@ static class HostingDesktopChecks
     }
     sealed class FakeHosting : HttpMessageHandler
     {
-        public List<JsonObject> Calls = []; public bool RateLimitOnce; public TaskCompletionSource<HttpResponseMessage>? Hold;
+        public List<JsonObject> Calls = []; public bool RateLimitOnce; public HttpStatusCode? FailOnce; public TaskCompletionSource<HttpResponseMessage>? Hold;
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Calls.Add(Json.Read(await request.Content!.ReadAsStringAsync()).AsObject());
             if (Hold != null) return await Hold.Task;
+            if (FailOnce is HttpStatusCode status) { FailOnce = null; return new(status) { Content = new StringContent("{}") }; }
             if (RateLimitOnce) { RateLimitOnce = false; return new(HttpStatusCode.TooManyRequests) { Content = new StringContent("{\"retryAfter\":1}") }; }
             bool closed = (string?)Calls[^1]["action"] == "close";
             return new(HttpStatusCode.OK) { Content = new StringContent(new JsonObject { ["status"] = closed ? "closed" : "sent", ["lobbyStatus"] = closed ? "closed" : "open", ["messageId"] = "123456789012345678" }.ToJsonString()) };
