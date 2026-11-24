@@ -31,6 +31,10 @@ static class GamemodeDesktopChecks
         string temp = Path.Combine(Path.GetTempPath(), "sgl-mode-ui-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temp); File.WriteAllText(Path.Combine(temp, "CloudSaveManifest.json"), "{\"Files\":[]}");
         var w = new MainWindow(["--data", Path.Combine(temp, "Data"), "--cloud-save", temp, "--no-update", "--no-mod-refresh"]);
+        var tabs = Control<TabControl>(w, "Tabs");
+        Check(ReferenceEquals(tabs.Items[0], Control<TabItem>(w, "HostingTab")), "Hosting is not the first navigation tab");
+        var editorButtons = Children(Control<Grid>(w, "ModeEditor")).OfType<Button>().Select(b => b.Content as string).ToArray();
+        Check(!editorButtons.Contains("Loadout") && !editorButtons.Contains("Export JSON"), "Removed editor buttons are still present");
         var rows = Control<StackPanel>(w, "Rows"); var categories = Control<ListBox>(w, "Categories"); var phases = Control<ComboBox>(w, "RulePhase");
         var search = Control<TextBox>(w, "SettingsSearch");
         foreach (var basis in BaseModes.All)
@@ -65,12 +69,14 @@ static class GamemodeDesktopChecks
         Check(!Children(rows).OfType<TextBlock>().Any(t => t.Text.Contains("SGL extra")), "In-game KOTH capture control labeled extra");
         search.Text = "bot difficulty";
         Check(Children(rows).OfType<TextBlock>().Any(t => t.Text.Contains("SGL extra")), "Hidden bot difficulty missing extra marker");
-        // A custom save can contain a general control the chosen base does not expose in-game.
-        search.Clear(); var arena = Configuration.New("arena-royale");
-        var roundLength = Configuration.Fields.Single(f => (string?)f["id"] == "roundLength");
-        arena["Options"]!["OptionMap"]![Configuration.Rules(arena)[0].Id]!["Options"]![(string)roundLength["option"]!] = new JsonObject { ["RoundLength"] = 120, ["Version"] = 0 };
-        Call(w, "Load", arena, null); search.Text = "round length";
-        Check(Children(rows).OfType<TextBlock>().Any(t => t.Text.Contains("SGL extra") && t.Text.Contains("this base mode")), "Mode-specific hidden control missing extra marker");
+        // Preserve an imported objective component, but make its non-native status explicit for TDM.
+        search.Clear(); var tdm = Configuration.New("tdm"); var koth = Configuration.New("koth");
+        var capture = Configuration.Fields.Single(f => (string?)f["id"] == "modePointsOnCapture");
+        string captureOption = (string)capture["option"]!;
+        tdm["Options"]!["OptionMap"]![Configuration.Rules(tdm)[0].Id]!["Options"]![captureOption] = koth["Options"]!["OptionMap"]![Configuration.Rules(koth)[0].Id]!["Options"]![captureOption]!.DeepClone();
+        Call(w, "Load", tdm, null); search.Text = "points on capture";
+        Check(Children(rows).OfType<TextBox>().Any(t => AutomationProperties.GetAutomationId(t) == "modePointsOnCapture"), "Imported objective control was hidden");
+        Check(Children(rows).OfType<TextBlock>().Any(t => t.Text.Contains("SGL extra") && t.Text.Contains("not native to Team Deathmatch")), "Non-native TDM capture setting missing explicit base marker");
         search.Clear();
         Call(w, "Load", Configuration.New("swat"), null); search.Text = "precision damage multiplier";
         Check(Children(rows).OfType<TextBox>().Any(t => t.Text == "10000"), "Stored SWAT multiplier was clamped");

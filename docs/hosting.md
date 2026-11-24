@@ -1,6 +1,6 @@
 # Hosting
 
-The Hosting tab is available in the local 0.6.0 build. The latest published release remains 0.5.0 until a separate release is requested.
+Hosting is the first tab in SGL 0.6.0. It combines the SpinGate spinner with explicit Open Lobby and Close Lobby controls for Discord announcements.
 
 ## SpinGate
 

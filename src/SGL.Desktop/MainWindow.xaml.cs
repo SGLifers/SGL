@@ -218,7 +218,6 @@ public partial class MainWindow : Window
             Render();
         SettingsScroll?.ScrollToTop();
     }
-    void LoadoutCategory(object s, RoutedEventArgs e) { SettingsSearch.Clear(); Categories.SelectedItem = "Loadouts"; }
     void SettingsSearchChanged(object s, TextChangedEventArgs e)
     {
         if (ClearSettingsSearchButton != null) ClearSettingsSearchButton.IsEnabled = !string.IsNullOrEmpty(SettingsSearch.Text);
@@ -313,7 +312,7 @@ public partial class MainWindow : Window
             if (v == null)
                 notes.Add("Not present in this saved base");
             if (!GamemodeUi.InGame(payload!, f, CurrentRule.Name))
-                notes.Add("SGL extra · not shown in this base mode's " + CurrentRule.Name + " menu");
+                notes.Add("SGL extra · not native to " + ((string?)GamemodeUi.Profile(payload!)?["name"] ?? "this base mode") + " · " + CurrentRule.Name);
             if (ruleContextId != null && Configuration.IsShared(payload!, f, ruleContextId))
                 notes.Add("Shared across rule phases");
             if (v != null && opened != null && !JsonNode.DeepEquals(v, Configuration.Value(opened, f, ruleContextId)))

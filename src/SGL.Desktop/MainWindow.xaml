@@ -11,6 +11,53 @@
             <TextBlock x:Name="VersionLabel" Text="0.1.0" HorizontalAlignment="Right" Foreground="#B9B7D6" />
         </DockPanel>
         <TabControl Grid.Row="1" x:Name="Tabs" Style="{StaticResource MainNavigation}">
+            <TabItem x:Name="HostingTab" Header="Hosting">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20,8,12,16">
+                        <TextBlock Text="Hosting" FontSize="24" Margin="0,0,0,16"/>
+                        <DockPanel Margin="0,0,0,10"><Button x:Name="HostingSignInButton" DockPanel.Dock="Right" Content="Sign in with Discord" Click="HostingSignIn"/><TextBlock x:Name="HostingAccount" VerticalAlignment="Center" Foreground="#B9B7D6"/></DockPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
+                            <StackPanel><TextBlock Text="Lobby name" Margin="0,0,0,5"/><TextBox x:Name="HostingLobbyName" MaxLength="80" Height="44" FontSize="18" TextChanged="HostingCodeChanged" AutomationProperties.Name="Lobby name" ToolTip="Optional name included with new lobby announcements"/></StackPanel>
+                            <StackPanel Grid.Column="2"><TextBlock Text="Lobby code" Margin="0,0,0,5"/><TextBox x:Name="HostingLobbyCode" Width="160" MaxLength="6" Height="44" CharacterCasing="Upper" TextChanged="HostingCodeChanged" FontSize="22" FontFamily="Consolas" HorizontalContentAlignment="Center" AutomationProperties.Name="Lobby code" ToolTip="Six letters or numbers"/></StackPanel>
+                        </Grid>
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button x:Name="HostingOpenLobbyButton" Content="Open Lobby" Click="HostingOpenLobby" IsEnabled="False" Background="{StaticResource Gold}" Foreground="#171027" MinWidth="130" Margin="0,0,10,0"/>
+                            <Button x:Name="HostingCloseLobbyButton" Content="Close Lobby" Click="HostingCloseLobby" IsEnabled="False" MinWidth="130"/>
+                        </WrapPanel>
+                        <TextBlock Text="Open Lobby posts to Discord. Close Lobby marks that announcement closed. These buttons do not control the lobby in-game." Foreground="#B9B7D6" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                        <TextBlock x:Name="HostingAnnouncementStatus" TextWrapping="Wrap" Foreground="#F3BE4F" Margin="0,6,0,24"/>
+                        <TextBlock Text="SpinGate" FontSize="22" Margin="0,0,0,10"/>
+                        <TextBlock Text="Rotation preset" Margin="0,0,0,5"/>
+                        <ComboBox x:Name="HostingPreset" SelectionChanged="HostingPresetChanged"/>
+                        <Grid Margin="0,18,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,12,0"><TextBlock Text="GAMEMODE" Foreground="#B9B7D6"/><TextBlock x:Name="HostingSpinMode" Text="Ready to spin" FontSize="26" Foreground="{StaticResource Gold}" TextWrapping="Wrap" Margin="0,6,0,8"/><Button x:Name="CopyHostingModeButton" Content="Copy gamemode" Click="CopyHostingMode" HorizontalAlignment="Left" IsEnabled="False"/></StackPanel>
+                            <StackPanel Grid.Column="1"><TextBlock Text="MAP" Foreground="#B9B7D6"/><TextBlock x:Name="HostingSpinMap" Text="—" FontSize="26" Foreground="{StaticResource Gold}" TextWrapping="Wrap" Margin="0,6,0,8"/><Button x:Name="CopyHostingMapButton" Content="Copy map" Click="CopyHostingMap" HorizontalAlignment="Left" IsEnabled="False"/></StackPanel>
+                        </Grid>
+                        <Button Content="Spin" Click="HostingSpinClick" Background="{StaticResource Gold}" Foreground="#171027" HorizontalAlignment="Left" MinWidth="140"/>
+                        <TextBlock x:Name="HostingSpinStatus" Text="Choose Spin to get started." Foreground="#B9B7D6" TextWrapping="Wrap" Margin="0,8,0,18"/>
+                        <Expander Header="Configure rotation" Foreground="#B9B7D6" IsExpanded="False">
+                            <StackPanel Margin="0,12,0,0">
+                                <TextBlock Text="Presets" FontSize="18"/>
+                                <TextBox x:Name="HostingPresetName" MaxLength="120" Margin="0,6,0,6" ToolTip="Name for a copy of the selected preset"/>
+                                <WrapPanel><Button Content="Copy selected preset" Click="CopyHostingPreset"/><Button Content="Delete selected preset" Click="DeleteHostingPreset"/><Button Content="Restore built-in preset" Click="RestoreHostingPreset"/></WrapPanel>
+                                <TextBlock Text="Gamemodes · one per line" FontSize="18" Margin="0,16,0,6"/>
+                                <TextBox x:Name="HostingModesInput" AcceptsReturn="True" Height="150" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"/>
+                                <WrapPanel Margin="0,8,0,0"><Button Content="Save gamemodes" Click="SaveHostingModes"/><Button Content="Add installed gamemodes" Click="AddInstalledHostingModes"/></WrapPanel>
+                                <TextBlock Text="Map lists" FontSize="18" Margin="0,16,0,6"/>
+                                <ComboBox x:Name="HostingMapLists" SelectionChanged="HostingMapListSelected"/>
+                                <TextBlock Text="Map list name" Margin="0,8,0,5"/><TextBox x:Name="HostingMapListName" MaxLength="120"/>
+                                <TextBlock Text="Maps · one per line" Margin="0,8,0,5"/><TextBox x:Name="HostingMapsInput" AcceptsReturn="True" Height="150" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"/>
+                                <WrapPanel Margin="0,8,0,0"><Button Content="Save map list" Click="SaveHostingMapList"/><Button Content="New map list" Click="NewHostingMapList"/><Button Content="Delete map list" Click="DeleteHostingMapList"/><Button Content="Use installed maps" Click="UseInstalledHostingMaps"/></WrapPanel>
+                                <TextBlock Text="Link gamemodes to map lists" FontSize="18" Margin="0,16,0,6"/>
+                                <ComboBox x:Name="HostingAssignedMode" SelectionChanged="HostingAssignedModeChanged" Margin="0,0,0,6"/>
+                                <ListBox x:Name="HostingAssignedLists" SelectionMode="Multiple" MaxHeight="180"/>
+                                <Button Content="Save selected map-list links" Click="SaveHostingLinks" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             <TabItem Header="Gamemodes" x:Name="ModesTab">
                 <TabControl Margin="0" SelectionChanged="ContentViewChanged" x:Name="ModeViews" Style="{StaticResource WorkspaceViews}">
                     <TabItem Header="Installed">
@@ -74,7 +121,6 @@
                                 <WrapPanel Grid.Row="1" Margin="0,12,0,12">
                                     <TextBlock Text="Rules" VerticalAlignment="Center" Margin="0,0,8,0" />
                                     <ComboBox x:Name="RulePhase" Width="170" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="RulePhaseChanged" AutomationProperties.Name="Rule phase" />
-                                    <Button Content="Loadout" Click="LoadoutCategory" />
                                     <Button Content="Reset opened values" Click="ResetOpened" />
                                 </WrapPanel>
                                 <StackPanel Grid.Row="2" Margin="0,0,0,12">
@@ -99,7 +145,6 @@
                                 </Grid>
                                 <WrapPanel Grid.Row="4" Margin="0,12,0,0">
                                     <Button x:Name="SaveButton" Content="Save to game" Background="{StaticResource Gold}" Foreground="#171027" Click="SaveToGame" />
-                                    <Button Content="Export JSON" Click="Export" />
                                     <Button Content="Duplicate" Click="Duplicate" />
                                     <Button Content="Publish mode" Click="ShareEditorMode" />
                                     <TextBlock x:Name="DirtyLabel" VerticalAlignment="Center" Foreground="#F3BE4F" Margin="6" />
@@ -508,53 +553,6 @@
                     </Grid>
                     <TextBlock x:Name="ModsStatus" Grid.Row="3" Text="Discovering community mods…" TextWrapping="Wrap" Foreground="#B9B7D6" Margin="0,12,0,0"/>
                 </Grid>
-            </TabItem>
-            <TabItem x:Name="HostingTab" Header="Hosting">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="20,8,12,16">
-                        <TextBlock Text="Hosting" FontSize="24" Margin="0,0,0,16"/>
-                        <DockPanel Margin="0,0,0,10"><Button x:Name="HostingSignInButton" DockPanel.Dock="Right" Content="Sign in with Discord" Click="HostingSignIn"/><TextBlock x:Name="HostingAccount" VerticalAlignment="Center" Foreground="#B9B7D6"/></DockPanel>
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="160"/></Grid.ColumnDefinitions>
-                            <StackPanel><TextBlock Text="Lobby name" Margin="0,0,0,5"/><TextBox x:Name="HostingLobbyName" MaxLength="80" Height="44" FontSize="18" TextChanged="HostingCodeChanged" AutomationProperties.Name="Lobby name" ToolTip="Optional name included with new lobby announcements"/></StackPanel>
-                            <StackPanel Grid.Column="2"><TextBlock Text="Lobby code" Margin="0,0,0,5"/><TextBox x:Name="HostingLobbyCode" Width="160" MaxLength="6" Height="44" CharacterCasing="Upper" TextChanged="HostingCodeChanged" FontSize="22" FontFamily="Consolas" HorizontalContentAlignment="Center" AutomationProperties.Name="Lobby code" ToolTip="Six letters or numbers"/></StackPanel>
-                        </Grid>
-                        <WrapPanel Margin="0,12,0,0">
-                            <Button x:Name="HostingOpenLobbyButton" Content="Open Lobby" Click="HostingOpenLobby" IsEnabled="False" Background="{StaticResource Gold}" Foreground="#171027" MinWidth="130" Margin="0,0,10,0"/>
-                            <Button x:Name="HostingCloseLobbyButton" Content="Close Lobby" Click="HostingCloseLobby" IsEnabled="False" MinWidth="130"/>
-                        </WrapPanel>
-                        <TextBlock Text="Open Lobby posts to Discord. Close Lobby marks that announcement closed. These buttons do not control the lobby in-game." Foreground="#B9B7D6" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                        <TextBlock x:Name="HostingAnnouncementStatus" TextWrapping="Wrap" Foreground="#F3BE4F" Margin="0,6,0,24"/>
-                        <TextBlock Text="SpinGate" FontSize="22" Margin="0,0,0,10"/>
-                        <TextBlock Text="Rotation preset" Margin="0,0,0,5"/>
-                        <ComboBox x:Name="HostingPreset" SelectionChanged="HostingPresetChanged"/>
-                        <Grid Margin="0,18,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                            <StackPanel Margin="0,0,12,0"><TextBlock Text="GAMEMODE" Foreground="#B9B7D6"/><TextBlock x:Name="HostingSpinMode" Text="Ready to spin" FontSize="26" Foreground="{StaticResource Gold}" TextWrapping="Wrap" Margin="0,6,0,8"/><Button x:Name="CopyHostingModeButton" Content="Copy gamemode" Click="CopyHostingMode" HorizontalAlignment="Left" IsEnabled="False"/></StackPanel>
-                            <StackPanel Grid.Column="1"><TextBlock Text="MAP" Foreground="#B9B7D6"/><TextBlock x:Name="HostingSpinMap" Text="—" FontSize="26" Foreground="{StaticResource Gold}" TextWrapping="Wrap" Margin="0,6,0,8"/><Button x:Name="CopyHostingMapButton" Content="Copy map" Click="CopyHostingMap" HorizontalAlignment="Left" IsEnabled="False"/></StackPanel>
-                        </Grid>
-                        <Button Content="Spin" Click="HostingSpinClick" Background="{StaticResource Gold}" Foreground="#171027" HorizontalAlignment="Left" MinWidth="140"/>
-                        <TextBlock x:Name="HostingSpinStatus" Text="Choose Spin to get started." Foreground="#B9B7D6" TextWrapping="Wrap" Margin="0,8,0,18"/>
-                        <Expander Header="Configure rotation" Foreground="#B9B7D6" IsExpanded="False">
-                            <StackPanel Margin="0,12,0,0">
-                                <TextBlock Text="Presets" FontSize="18"/>
-                                <TextBox x:Name="HostingPresetName" MaxLength="120" Margin="0,6,0,6" ToolTip="Name for a copy of the selected preset"/>
-                                <WrapPanel><Button Content="Copy selected preset" Click="CopyHostingPreset"/><Button Content="Delete selected preset" Click="DeleteHostingPreset"/><Button Content="Restore built-in preset" Click="RestoreHostingPreset"/></WrapPanel>
-                                <TextBlock Text="Gamemodes · one per line" FontSize="18" Margin="0,16,0,6"/>
-                                <TextBox x:Name="HostingModesInput" AcceptsReturn="True" Height="150" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"/>
-                                <WrapPanel Margin="0,8,0,0"><Button Content="Save gamemodes" Click="SaveHostingModes"/><Button Content="Add installed gamemodes" Click="AddInstalledHostingModes"/></WrapPanel>
-                                <TextBlock Text="Map lists" FontSize="18" Margin="0,16,0,6"/>
-                                <ComboBox x:Name="HostingMapLists" SelectionChanged="HostingMapListSelected"/>
-                                <TextBlock Text="Map list name" Margin="0,8,0,5"/><TextBox x:Name="HostingMapListName" MaxLength="120"/>
-                                <TextBlock Text="Maps · one per line" Margin="0,8,0,5"/><TextBox x:Name="HostingMapsInput" AcceptsReturn="True" Height="150" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"/>
-                                <WrapPanel Margin="0,8,0,0"><Button Content="Save map list" Click="SaveHostingMapList"/><Button Content="New map list" Click="NewHostingMapList"/><Button Content="Delete map list" Click="DeleteHostingMapList"/><Button Content="Use installed maps" Click="UseInstalledHostingMaps"/></WrapPanel>
-                                <TextBlock Text="Link gamemodes to map lists" FontSize="18" Margin="0,16,0,6"/>
-                                <ComboBox x:Name="HostingAssignedMode" SelectionChanged="HostingAssignedModeChanged" Margin="0,0,0,6"/>
-                                <ListBox x:Name="HostingAssignedLists" SelectionMode="Multiple" MaxHeight="180"/>
-                                <Button Content="Save selected map-list links" Click="SaveHostingLinks" HorizontalAlignment="Left" Margin="0,8,0,0"/>
-                            </StackPanel>
-                        </Expander>
-                    </StackPanel>
-                </ScrollViewer>
             </TabItem>
             <TabItem x:Name="SettingsTab" Header="Settings">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">

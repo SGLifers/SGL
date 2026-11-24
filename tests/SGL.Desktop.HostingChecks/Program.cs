@@ -36,7 +36,7 @@ static class HostingDesktopChecks
         Directory.CreateDirectory(cloud); File.WriteAllText(Path.Combine(cloud, "CloudSaveManifest.json"), "{\"Files\":[]}");
         var w = new MainWindow(["--data", data, "--cloud-save", cloud, "--no-update", "--no-mod-refresh"]);
         Set(w, "hostingEndpointOverride", "");
-        Check(Control<TabControl>(w, "Tabs").Items.Count == 5, "Hosting tab missing");
+        Check(Control<TabControl>(w, "Tabs").Items.Count == 5 && ReferenceEquals(Control<TabControl>(w, "Tabs").Items[0], Control<TabItem>(w, "HostingTab")), "Hosting must be the first tab");
         Set(w, "changingContentView", true); Control<TabControl>(w, "ModeViews").SelectedIndex = 1; Set(w, "changingContentView", false); Control<TabItem>(w, "HostingTab").IsSelected = true;
         Check(!Get<bool>(w, "RemoteViewSelected"), "Hosting entered the mode community view");
         var presets = Control<ComboBox>(w, "HostingPreset"); Check(presets.Items.Count == 2, "Spinner defaults missing");
