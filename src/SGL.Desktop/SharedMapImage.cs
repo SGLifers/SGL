@@ -9,11 +9,13 @@ namespace SGL.Desktop;
 public sealed class SharedMapImage : Image
 {
     public static readonly DependencyProperty PreviewDescriptorProperty = DependencyProperty.Register(nameof(PreviewDescriptor), typeof(JsonObject), typeof(SharedMapImage), new PropertyMetadata(null, Changed));
+    public static readonly DependencyProperty CatalogProperty = DependencyProperty.Register(nameof(Catalog), typeof(CommunityMap), typeof(SharedMapImage), new PropertyMetadata(null, Changed));
     static readonly DependencyPropertyKey HasPreviewPropertyKey = DependencyProperty.RegisterReadOnly(nameof(HasPreview), typeof(bool), typeof(SharedMapImage), new PropertyMetadata(false));
     public static readonly DependencyProperty HasPreviewProperty = HasPreviewPropertyKey.DependencyProperty;
     static readonly DependencyPropertyKey IsLoadingPropertyKey = DependencyProperty.RegisterReadOnly(nameof(IsLoading), typeof(bool), typeof(SharedMapImage), new PropertyMetadata(false));
     public static readonly DependencyProperty IsLoadingProperty = IsLoadingPropertyKey.DependencyProperty;
     public JsonObject? PreviewDescriptor { get => (JsonObject?)GetValue(PreviewDescriptorProperty); set => SetValue(PreviewDescriptorProperty, value); }
+    public CommunityMap? Catalog { get => (CommunityMap?)GetValue(CatalogProperty); set => SetValue(CatalogProperty, value); }
     public bool HasPreview => (bool)GetValue(HasPreviewProperty);
     public bool IsLoading => (bool)GetValue(IsLoadingProperty);
     long generation;
@@ -32,10 +34,11 @@ public sealed class SharedMapImage : Image
     {
         long current = ++generation;
         var descriptor = PreviewDescriptor;
-        if (descriptor == null) return;
+        var catalog = Catalog;
+        if (descriptor == null && catalog == null) return;
         SetValue(IsLoadingPropertyKey, true);
-        var bitmap = await SharedImageCache.Get(descriptor);
-        if (current != generation || !ReferenceEquals(descriptor, PreviewDescriptor)) return;
+        var bitmap = descriptor != null ? await SharedImageCache.Get(descriptor) : await SharedImageCache.Get(catalog!);
+        if (current != generation || !ReferenceEquals(descriptor, PreviewDescriptor) || !ReferenceEquals(catalog, Catalog)) return;
         Source = bitmap;
         SetValue(IsLoadingPropertyKey, false);
         SetValue(HasPreviewPropertyKey, bitmap != null);
@@ -64,30 +67,40 @@ public sealed class SharedMapImage : Image
 static class SharedImageCache
 {
     static readonly object gate = new();
-    static readonly Dictionary<string, BitmapSource> images = new(StringComparer.OrdinalIgnoreCase);
-    static readonly Dictionary<string, Task<BitmapSource?>> pending = new(StringComparer.OrdinalIgnoreCase);
+    static readonly Dictionary<string, BitmapSource> images = new(StringComparer.Ordinal);
+    static readonly Dictionary<string, Task<BitmapSource?>> pending = new(StringComparer.Ordinal);
     static readonly SemaphoreSlim downloads = new(4);
     public static Task<BitmapSource?> Get(JsonObject descriptor)
     {
         if (descriptor["sha256"] is not JsonValue value || !value.TryGetValue<string>(out var key) || key.Length != 64 || !key.All(Uri.IsHexDigit))
             return Task.FromResult<BitmapSource?>(null);
+        var copy = Configuration.Clone(descriptor);
+        return Get(key.ToUpperInvariant(), () => LibraryClient.FetchPreview(copy));
+    }
+    public static Task<BitmapSource?> Get(CommunityMap map)
+    {
+        if (string.IsNullOrWhiteSpace(map.Image)) return Task.FromResult<BitmapSource?>(null);
+        return Get("catalog:" + map.Image, () => Maps.Preview(map));
+    }
+    static Task<BitmapSource?> Get(string key, Func<Task<byte[]?>> fetch)
+    {
         lock (gate)
         {
             if (images.TryGetValue(key, out var image)) return Task.FromResult<BitmapSource?>(image);
             if (pending.TryGetValue(key, out var request)) return request;
-            var task = Fetch(key, Configuration.Clone(descriptor));
+            var task = Fetch(key, fetch);
             pending[key] = task;
             return task;
         }
     }
-    static async Task<BitmapSource?> Fetch(string key, JsonObject descriptor)
+    static async Task<BitmapSource?> Fetch(string key, Func<Task<byte[]?>> fetch)
     {
         // Yield before touching the dictionaries so Get can register this task.
         await Task.Yield();
         await downloads.WaitAsync();
         try
         {
-            var bytes = await LibraryClient.FetchPreview(descriptor);
+            var bytes = await fetch();
             var image = bytes == null ? null : SharedMapImage.Decode(bytes);
             if (image != null) lock (gate)
             {

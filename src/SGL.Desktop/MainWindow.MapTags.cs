@@ -11,8 +11,8 @@ public partial class MainWindow
     Dictionary<string, string[]> mapTags = new(StringComparer.Ordinal);
     bool updatingMapTagFilter;
     MapTags TagStore => new(Path.Combine(Path.GetDirectoryName(HistoryDirectory)!, "map-tags.json"));
-    SavedMap? SelectedInstalledMap => (InstalledMaps?.SelectedItem as MapListItem)?.Installed;
-    CommunityMap? SelectedCommunityMap => (CommunityMaps?.SelectedItem as MapListItem)?.Community;
+    SavedMap? SelectedInstalledMap => SelectedInstalledMaps is [SavedMap map] ? map : null;
+    CommunityMap? SelectedCommunityMap => SelectedLibraryRows is [var row] ? row.Catalog : null;
     string[] TagsFor(string id) => mapTags.GetValueOrDefault(id) ?? [];
     string TagSummary(string id) => string.Join(" · ", TagsFor(id));
     MapListItem MapRow(CommunityMap map) => new(map.Id, map.Name, map.Author, map.Category, TagSummary(map.Id), map, null);
@@ -44,22 +44,28 @@ public partial class MainWindow
     void FilterInstalledMaps()
     {
         if (InstalledMaps == null || InstalledMapSearch == null) return;
-        string? selected = SelectedInstalledMap?.Id;
+        var selected = SelectedInstalledMaps.Select(m => m.Id).ToArray();
         string search = InstalledMapSearch.Text.Trim();
-        InstalledMaps.ItemsSource = snapshot?.Maps.Where(m => MapTags.Matches(TagsFor(m.Id), "", SelectedTag)
+        updatingMapSelections = true;
+        try { InstalledMaps.ItemsSource = snapshot?.Maps.Where(m => MapTags.Matches(TagsFor(m.Id), "", SelectedTag)
             && (search.Length == 0 || m.Name.Contains(search, StringComparison.OrdinalIgnoreCase) || m.Author.Contains(search, StringComparison.OrdinalIgnoreCase) || MapTags.Matches(TagsFor(m.Id), search)))
-            .OrderBy(m => m.Name).Select(MapRow).ToArray() ?? [];
-        SelectInstalledMap(selected);
+            .OrderBy(m => m.Name).Select(MapRow).ToArray() ?? []; }
+        finally { updatingMapSelections = false; }
+        RestoreMapSelection(InstalledMaps, selected);
+        RefreshMapLinks();
+        UpdateMapSelectionButtons();
         UpdateMapTagDetails();
+        UpdateInstalledMapDetails();
     }
-    (string Id, string Name)? TagTarget => snapshot == null ? null : SelectedInstalledMap is SavedMap installed ? (installed.Id, installed.Name)
-        : SelectedCommunityMap is CommunityMap community ? (community.Id, community.Name) : null;
+    (string Id, string Name)? TagTarget => snapshot == null ? null : RemoteViewSelected
+        ? SelectedCommunityMap is CommunityMap community ? (community.Id, community.Name) : null
+        : SelectedInstalledMap is SavedMap installed ? (installed.Id, installed.Name) : null;
     void UpdateMapTagDetails()
     {
         if (MapTagTitle == null) return;
         var target = TagTarget;
         MapTagTitle.Text = target is { } map ? "Local tags · " + map.Name : "Local tags";
-        MapTagDetails.Text = target is { } selected ? TagSummary(selected.Id) is { Length: > 0 } tags ? tags : "No tags yet." : "Select a map to edit its tags.";
+        MapTagDetails.Text = target is { } selected ? TagSummary(selected.Id) is { Length: > 0 } tags ? tags : "No tags yet." : "Select a single map to edit its tags.";
         EditMapTagsButton.IsEnabled = target != null;
     }
     void EditMapTags(object sender, RoutedEventArgs e) => Run(() =>

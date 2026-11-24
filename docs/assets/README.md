@@ -7,3 +7,9 @@
 The four `*-annotated.svg` files embed the original screenshot bytes unchanged and add a red rectangle and arrow over the relevant button. Regenerate them with `node scripts/annotate-setup-screenshots.mjs`. The self-contained SVGs work in both the online and offline guides.
 
 `sgl-editor.png` and `sgl-history.png` show SGL with demonstration data. `protection-history.png` is the original Microsoft Support reference screenshot, restored to the guide at the user's request. It is an example rather than an actual SGL detection. Source: https://support.microsoft.com/en-us/windows/security/windows-security/protection-history-in-the-windows-security-app
+
+The editor and history images were refreshed on November 23, 2026 using offscreen renders of the current WPF interface with isolated demonstration saves. History opens inside Gamemodes; neither image includes real player saves or personal paths.
+
+The current editor/history examples also show the Installed, Community and My uploads navigation added during the local/cloud library consolidation.
+
+Current screenshots also reflect removal of gamemode draft controls and content share-link actions.

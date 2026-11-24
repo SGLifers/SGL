@@ -74,10 +74,10 @@ public partial class MainWindow
             if (health["features"] is not JsonArray features || !features.Any(f => (string?)f == "mapTags") || !features.Any(f => (string?)f == "reuseMapRevision"))
                 throw new InvalidOperationException("This sharing service needs an update to support map tags. Portable package export works offline.");
         }
-        var selected = LibraryItems.SelectedItem as LibraryItem;
-        var selectedRevision = LibraryRevisions.SelectedItem as LibraryRevision;
+        var selected = publishingParent ?? SelectedLibraryItem;
+        var selectedRevision = publishingRevision ?? LibraryRevisions.SelectedItem as LibraryRevision;
         if (action != "new" && (selected == null || selected.Kind != kind || selectedRevision == null))
-            throw new InvalidOperationException("Select a shared item of the same type in Browse first.");
+            throw new InvalidOperationException("Choose a publication of the same type first.");
         if (action == "update" && selected!.OwnerId != (string?)user["id"])
             throw new InvalidOperationException("Only the publisher can add revisions. Choose My own version for another creator’s item.");
         string summary = string.Join("\n", sources.Select(s => "• " + s.Name + " (" + s.Kind + ")" + (s.Tags.Length > 0 ? " · Tags: " + string.Join(", ", s.Tags) : "")));
@@ -169,8 +169,7 @@ public partial class MainWindow
         }
         else
             published = await PublishAsset(sources[0], false);
-        LibraryLink.Text = (string)published["shareUrl"]!;
-        Clipboard.SetText(LibraryLink.Text);
-        LibraryStatus.Text = "Published. The link to this exact revision has been copied. Your local game saves were not changed.";
+        LibraryStatus.Text = "Published. Your upload is available in My uploads.";
+        if (browseContexts.TryGetValue(BrowseKey, out var context)) context.Loaded = false;
     });
 }

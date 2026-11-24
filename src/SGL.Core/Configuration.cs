@@ -22,7 +22,7 @@ public static class Configuration
         return (JsonObject)Json.Read(reader.ReadToEnd());
     }
     public static Dictionary<string, object> Wrapped(JsonObject payload) => Modes.Recipes(Modes.Parse(payload.ToJsonString()))[0];
-    public static JsonObject New(string basis) => (JsonObject)Json.Read(Modes.Resource(basis + ".json"));
+    public static JsonObject New(string basis) => BaseModes.Create(basis);
     public static IEnumerable<JsonObject> Contexts(JsonObject payload) => payload["Options"]!["OptionMap"]!.AsObject().Select(n => n.Value!["Options"]!.AsObject());
     public static JsonNode? Value(JsonObject payload, JsonObject field)
     {

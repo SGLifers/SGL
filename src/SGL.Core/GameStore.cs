@@ -81,7 +81,7 @@ public sealed partial class GameStore(string root, Func<bool>? running = null)
     {
         var current = Read();
         if (current.ManifestHash != expected.ManifestHash || !current.Modes.Select(m => (m.Id, m.ArchiveHash)).SequenceEqual(expected.Modes.Select(m => (m.Id, m.ArchiveHash))) || !current.Maps.Select(m => (m.Id, m.ArchiveHash)).SequenceEqual(expected.Maps.Select(m => (m.Id, m.ArchiveHash))))
-            throw new IOException("Game saves changed since refresh. Refresh before saving; your draft is retained.");
+            throw new IOException("Game saves changed since refresh. Refresh before saving; your editor changes are retained.");
     }
     static string Owner(JsonArray entries)
     {

@@ -1,13 +1,13 @@
 # Sharing maps and gamemodes
 
-SGL 0.3 adds portable packages and a Shared library. Portable `.sglpack` files work without a service or account. Online sharing requires the administrator to deploy the service and configure its Discord application first. The deployed service endpoint is embedded in the app.
+Maps and Gamemodes each include **Installed**, **Community** and **My uploads**. Installed contains local copies, Community contains public content, and My uploads contains your publications, including legacy unlisted items. The map Community view combines the Architects catalog and SGL uploads, with a source filter. Portable `.sglpack` files work without a service or account. Online sharing requires the administrator to deploy the service and configure its Discord application first. The deployed service endpoint is embedded in the app.
 
 ## Send a portable package
 
-1. Open **Shared library → Publish**.
+1. Open **Maps or Gamemodes → My uploads → Publish local…**.
 2. Choose **Map**, **Gamemode**, or **Map + gamemode bundle** and select your local content. The current gamemode editor can be exported before saving it to the game.
 3. Select **Export local package** and send the `.sglpack` file to another player.
-4. The recipient chooses **Shared library → Browse → Import package**, reviews the contents and installs with Splitgate closed.
+4. The recipient chooses **Maps or Gamemodes → Community → Import package**, reviews the contents and installs with Splitgate closed.
 
 SGL validates the package, makes a complete game-save backup and registers both bundle entries in one transaction. A bundle also creates a local map-to-mode association. Players select the map and mode separately in the custom lobby. Recipients must already have saved a custom gamemode once so SGL can determine their save ownership.
 
@@ -25,13 +25,13 @@ The Discord sign-in button is hidden while a valid SGL session is active. Sign o
 
 Shareable tags and the tag/publisher filters require **SGL 0.3.3 or later**. Version 0.3.2 keeps tags local.
 
-Select a map in **Maps → Edit local tags…** and enter comma-separated labels such as **TDM, 1v1, Friday event**. A map supports up to 20 tags of 40 characters each. The Publish tab previews the tags that will be included.
+Select a map in **Maps → Installed → Edit local tags…** and enter comma-separated labels such as **TDM, 1v1, Friday event**. A map supports up to 20 tags of 40 characters each. The publication form previews the tags that will be included.
 
 Tags travel with online map publications, map/gamemode bundles and portable packages. Each published revision retains its own tags; tag-only edits create a new revision and reuse the existing map file when its contents are unchanged. Existing published items have no tags until their owner publishes a tagged revision. Older clients that omit tags preserve the current labels during updates.
 
 Installing a map imports its pinned revision's tags. Later installations update tags that the host has left unchanged. If the host has added or removed tags locally, SGL preserves that complete personal tag set. A separate map copy receives the incoming tags. Tag edits are shared only when the host explicitly publishes or exports the map again.
 
-In **Shared library → Browse**, enter an exact **Tag** and/or a **Publisher name or Discord ID**, then choose **Apply filters** or press Enter. Matching ignores case; creator filtering uses partial publisher names or IDs, not free-form original-author credits. Filters apply to public items, or your own items when **My publications** is checked, and continue through **Load more**. Empty result pages do not mean the remaining pages have no matches. **Search loaded results** narrows the downloaded results by title, description, publisher or tags. **Clear filters** starts a fresh listing.
+In **Maps or Gamemodes → Community**, enter an exact **Tag** and/or a **Creator** (publisher name or Discord ID), then choose **Apply filters** or press Enter. Matching ignores case; creator filtering uses partial publisher names or IDs, not free-form original-author credits. Filters apply to public items, or your own items in **My uploads**, and continue through **Load more**. Empty result pages do not mean the remaining pages have no matches. **Search** narrows the downloaded results by title, description, publisher or tags. **Clear filters** starts a fresh listing.
 
 ## Publish online
 
@@ -42,14 +42,14 @@ Choose the content, enter a title, credits and change note, then select visibili
 | Visibility | Access |
 | --- | --- |
 | Public | Listed in the library; anyone can read/download it. |
-| Unlisted | Omitted from browsing; anyone with its link can read/download it. |
 | Private | Only the publishing account can read/download it. |
+
+New uploads use Public or Private visibility. Existing unlisted uploads remain in My uploads. Publishing no longer copies a share link; use portable packages to send content directly.
 
 Publishing is an explicit action. Local saves, local Git history, Windows usernames, CloudSave ownership and local paths are not automatically uploaded. Map archives retain their own embedded metadata; review those files before publishing. Public profiles expose Discord ID, display name and avatar. Credits identify original map authors separately from the account uploading a file.
 
-The copied link pins the exact revision. **Shared library → Browse → Enable browser links** registers the `sgl:` protocol for the current Windows user. A link opens a review screen; installation always requires confirmation. Keep SGL.exe in its permanent folder before enabling links. Moving the EXE requires enabling them again.
 
-Cancel stops further requests; revisions that already completed remain published. Bundle assets are published before the final bundle, so an interrupted publication can leave individual map or mode items in My publications.
+Cancel stops further requests; revisions that already completed remain published. Bundle assets are published before the final bundle, so an interrupted publication can leave individual map or mode items in My uploads.
 
 ## Edits, revisions and installation
 
@@ -72,3 +72,11 @@ Billing data can be delayed, and storage/monitoring costs continue while paused.
 ## Known limitations
 
 Shared editing is owner-only with forks; collaborative permissions, cloud deletion/moderation controls, notifications and map geometry diffs are not included. Operators can hide abusive items through the private administrative datastore. Published revisions and content are retained; there is no automatic cloud garbage collection. A previously issued download URL can remain usable for up to 15 minutes after visibility changes. Deleting a local item does not remove its cloud publication.
+
+## Local copies and cloud revisions
+
+Cards distinguish Architects catalog maps from SGL uploads and show installed state. Tracked SGL copies can show **Local edits** and **Update available** independently. Your upload cards also show visibility. Bundles appear in both content sections because they contain a map and a gamemode. Where SGL knows the publication-to-local identity, **Open installed copy** returns to the local item. Local deletion never deletes an upload.
+
+Select one publication to inspect or install an exact revision. Multi-selection installs the latest revisions, and catalog maps already installed are skipped. A cloud failure leaves local editing and the cached map catalog available.
+
+Use **Publish mode** from the local editor or **Publish map** from Installed to prepare a publication. **Publish update** is restricted to your own uploads; **Save as my version** retains the original publication as the fork parent. Choose the local content to upload before publishing. Sign-out clears cached private upload views.

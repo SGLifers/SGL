@@ -1,0 +1,233 @@
+[
+  {
+    "id": "arena-royale",
+    "name": "Arena Royale",
+    "variant": "PortalWarsGameVariant:GV_Hangman_Team_1BiomeVote",
+    "resource": "base.arena-royale.json",
+    "sha256": "0415051a9648c91e60037d925cff95dc9aef5869553c550d173e97a56b4e32c4"
+  },
+  {
+    "id": "big-head-snipers",
+    "name": "Big Head Snipers",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_Team_BigHeadSnipers",
+    "resource": "base.big-head-snipers.json",
+    "sha256": "d397c8caf8741db5e670370e0d40ce374c2b9f13c38de60de9dcec589caee552"
+  },
+  {
+    "id": "chaos-domination",
+    "name": "Chaos Domination",
+    "variant": "PortalWarsGameVariant:GV_DOM_Team_Chaos_Rounds",
+    "resource": "base.chaos-domination.json",
+    "sha256": "201d7ad671983585bdbfda4ad31e5dd688379f30ca0d638d3541abff9b82ad3c"
+  },
+  {
+    "id": "chaos-firecracker",
+    "name": "Chaos Firecracker",
+    "variant": "PortalWarsGameVariant:GV_Firecracker_Team_Chaos_Asymmetric",
+    "resource": "base.chaos-firecracker.json",
+    "sha256": "1d4b42cc67e2cb8a6f1f709919c4bf52bf73defd3840aac1517f1182ea9abea3"
+  },
+  {
+    "id": "chaos-splitball",
+    "name": "Chaos Splitball",
+    "variant": "PortalWarsGameVariant:GV_Splitball_Team_Chaos",
+    "resource": "base.chaos-splitball.json",
+    "sha256": "d4c3586d8d969aa42e881d9e2a0418233d3452dc35aa2a222cdc394aed1a8843"
+  },
+  {
+    "id": "domination-1-round",
+    "name": "Domination (1 Round)",
+    "variant": "PortalWarsGameVariant:GV_DOM_Team_1round_Default",
+    "resource": "base.domination-1-round.json",
+    "sha256": "647ac14dec1d73030e4627ec2b892a011d75ecc16110e0bfa13fd58cee0a0054"
+  },
+  {
+    "id": "ffa-deathmatch",
+    "name": "FFA Deathmatch",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_FFA_Default",
+    "resource": "base.ffa-deathmatch.json",
+    "sha256": "712ddd951917831374b0802a52f95a2db7e178cf8caa65c5d6fd32e385b34973"
+  },
+  {
+    "id": "ffa-fiesta",
+    "name": "FFA Fiesta",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_FFA_Fiesta",
+    "resource": "base.ffa-fiesta.json",
+    "sha256": "0004cd88bc4d6db70a809b1dfd23295cb2d8a57ebeda857401d8216d94f8b206"
+  },
+  {
+    "id": "ffa-one-in-the-chamber",
+    "name": "FFA One in the Chamber",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_FFA_OITC_Default",
+    "resource": "base.ffa-one-in-the-chamber.json",
+    "sha256": "c7b1c65c86e099ad448e83308438880b2c06bd591763b668020ad89a46a6f808"
+  },
+  {
+    "id": "ffa-one-in-the-chamber-goliath",
+    "name": "FFA One in the Chamber (Goliath)",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_FFA_OITC_Goliath",
+    "resource": "base.ffa-one-in-the-chamber-goliath.json",
+    "sha256": "7e9252a7734f789694721548394a5935f4fa80e099a3a25b6173946e985c1106"
+  },
+  {
+    "id": "firecracker",
+    "name": "Firecracker",
+    "variant": "PortalWarsGameVariant:GV_Firecracker_Team_Asymmetric",
+    "resource": "base.firecracker.json",
+    "sha256": "cc53599c051f8427345962efa15c2b2e06e80c793632815bd0bb4204c69baf86"
+  },
+  {
+    "id": "flying-splitball",
+    "name": "Flying Splitball",
+    "variant": "PortalWarsGameVariant:GV_Splitball_Team_FlyingSplitball",
+    "resource": "base.flying-splitball.json",
+    "sha256": "39c0a933c561563446d6c0d67d6336b175f3f48dfe65cc4a48d9cbfc656a8885"
+  },
+  {
+    "id": "graffiti",
+    "name": "Graffiti",
+    "variant": "PortalWarsGameVariant:GV_Graffiti_Team_Default",
+    "resource": "base.graffiti.json",
+    "sha256": "2b89f98967881120f8351b82b89dad6dc8cb0bc44e3f9f2b8a839c8037588ef1"
+  },
+  {
+    "id": "gun-game",
+    "name": "Gun Game",
+    "variant": "PortalWarsGameVariant:GV_GunGame_FFA_Default",
+    "resource": "base.gun-game.json",
+    "sha256": "9d18ecd86593b24516c299009cf282fe3b86d3b7a466b39e2b5c43757b3b33df"
+  },
+  {
+    "id": "hotzone-1-round",
+    "name": "Hotzone (1 Round)",
+    "variant": "PortalWarsGameVariant:GV_Hotzone_Team_1round",
+    "resource": "base.hotzone-1-round.json",
+    "sha256": "f13c11bac6e1858592008ac0f0952e3f95f314a8c49acba57d38992f7732669a"
+  },
+  {
+    "id": "koth",
+    "name": "King of the Hill",
+    "variant": "PortalWarsGameVariant:GV_KOTH_Team_Default",
+    "resource": "koth.json",
+    "sha256": "dd53eddc1abf4af8feab0988f5b6e2cc7c912efdeb2b8a643fdc59fdedb278ac"
+  },
+  {
+    "id": "multi-team-deathmatch",
+    "name": "Multi-team Deathmatch",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_3Team_Default",
+    "resource": "base.multi-team-deathmatch.json",
+    "sha256": "e12bfbb71b5476644cd319088ee1508811250e03ed8a87b9d8ec76262ca1093a"
+  },
+  {
+    "id": "multi-team-deathmatch-2v2v2v2",
+    "name": "Multi-team deathmatch (2v2v2v2)",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_2v2v2v2_Default",
+    "resource": "base.multi-team-deathmatch-2v2v2v2.json",
+    "sha256": "5c9ac3ad089956515525730c941581a766b4c27e2f261fd87fcf3f227a83aee5"
+  },
+  {
+    "id": "multi-team-deathmatch-3v3v3",
+    "name": "Multi-team deathmatch (3v3v3)",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_3v3v3_Default",
+    "resource": "base.multi-team-deathmatch-3v3v3.json",
+    "sha256": "4e83e03404db66cd2d11c6b76a0ebe6a0e4df9d677cb58205c0ebfaba932fa12"
+  },
+  {
+    "id": "multi-team-deathmatch-4v4v4v4v4v4",
+    "name": "Multi-team deathmatch (4v4v4v4v4v4)",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_4v4v4v4v4v4_Default",
+    "resource": "base.multi-team-deathmatch-4v4v4v4v4v4.json",
+    "sha256": "99770e53a462846b8e82b999530584af125eadaafd9d54a5d997b76d0d0b6b69"
+  },
+  {
+    "id": "multi-team-deathmatch-6v6v6v6",
+    "name": "Multi-team deathmatch (6v6v6v6)",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_6v6v6v6_Default",
+    "resource": "base.multi-team-deathmatch-6v6v6v6.json",
+    "sha256": "fc5dfae389502ecf1fc971e739ca8dac4b725958d2f98ddfebb1ea4719967a8d"
+  },
+  {
+    "id": "onslight-graffiti",
+    "name": "Onslight Graffiti",
+    "variant": "PortalWarsGameVariant:GV_Graffiti_3Team_Default",
+    "resource": "base.onslight-graffiti.json",
+    "sha256": "35279bbd90c6e26c0ab8c06814e77b1f3b32003da0e106f362ac6815ff9f76b1"
+  },
+  {
+    "id": "race",
+    "name": "Race",
+    "variant": "PortalWarsGameVariant:GV_Race_FFA_Default",
+    "resource": "base.race.json",
+    "sha256": "21c05c45c9e7a62aa4e5e5c2fd08d9902a90c3347fd67df21fd4d07c73670552"
+  },
+  {
+    "id": "showdown-firecracker",
+    "name": "Showdown Firecracker",
+    "variant": "PortalWarsGameVariant:GV_Firecracker_Team_1life_Asymmetric",
+    "resource": "base.showdown-firecracker.json",
+    "sha256": "be429c924cbf9be790c92b145d951be7b878c0525b8998004ea9a3d614cd603d"
+  },
+  {
+    "id": "speed-bats",
+    "name": "Speed bats",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_Team_SpeedBats",
+    "resource": "base.speed-bats.json",
+    "sha256": "be952eb38a38522267108501374503bb09ef284ced2864a3e221c974f0a58e74"
+  },
+  {
+    "id": "splitball-1-round",
+    "name": "Splitball (1 Round)",
+    "variant": "PortalWarsGameVariant:GV_Splitball_Team_1round_Default",
+    "resource": "base.splitball-1-round.json",
+    "sha256": "8900f3a397631699e27ac6b5cdcbdd75882bfb18e14956cd9d07b09b32d45a96"
+  },
+  {
+    "id": "swat",
+    "name": "SWAT",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_Team_SWAT_Aeros",
+    "resource": "swat.json",
+    "sha256": "8df4980d73a99fff94a109a89a8a39b26c9d98946904938a1d13531e6fba3166"
+  },
+  {
+    "id": "takedown-og",
+    "name": "Takedown OG",
+    "variant": "PortalWarsGameVariant:GV_Takedown_Team_CarbineAR",
+    "resource": "base.takedown-og.json",
+    "sha256": "c0901dc3eee99be780a1444fbc7d577733112cc8475bf1b5629aa6ec7221948c"
+  },
+  {
+    "id": "teabag-confirmed",
+    "name": "Teabag Confirmed",
+    "variant": "PortalWarsGameVariant:GV_TeabagConfirmed_Team_Default",
+    "resource": "base.teabag-confirmed.json",
+    "sha256": "61603320f231fb7b86dc99ee24a18a797a3348a97569f078eee4508871d0e4eb"
+  },
+  {
+    "id": "tdm",
+    "name": "Team Deathmatch",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_Team_1round_Default",
+    "resource": "tdm.json",
+    "sha256": "6e05729cee8e7abe5627ac964ff75f3bd736048d5a6298553ccc7455881fe771"
+  },
+  {
+    "id": "tdm-1v1",
+    "name": "Team deathmatch (1v1)",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_Team_1v1",
+    "resource": "base.tdm-1v1.json",
+    "sha256": "829fdfcdb9dd22bed0b00f4c5e891535e2c266365b0a2b9a22ff7ed7a261fc82"
+  },
+  {
+    "id": "team-shotty-snipers-aeros",
+    "name": "Team shotty snipers (Aeros)",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_Team_ShottySnipers_Aeros",
+    "resource": "base.team-shotty-snipers-aeros.json",
+    "sha256": "c712b33fb48f78a855cd691388ffc593fd87083422944eb80d174a273b3e1880"
+  },
+  {
+    "id": "team-shotty-snipers-powers",
+    "name": "Team shotty snipers (Powers)",
+    "variant": "PortalWarsGameVariant:GV_Deathmatch_Team_ShottySnipers_Powers",
+    "resource": "base.team-shotty-snipers-powers.json",
+    "sha256": "41ec60d4e31c9959facc1547902d30eb2a1381f1230da2f92efd348cc50c8937"
+  }
+]

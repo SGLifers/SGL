@@ -4,7 +4,7 @@ namespace SGL.Desktop;
 
 public partial class App : Application
 {
-    SharedLinkActivation? activation;
+    SingleInstanceActivation? activation;
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -21,21 +21,24 @@ public partial class App : Application
         DispatcherUnhandledException += (s, args) => { MessageBox.Show(args.Exception.Message, "SGL", MessageBoxButton.OK, MessageBoxImage.Warning); args.Handled = true; };
         try
         {
-            int dataIndex = Array.IndexOf(e.Args, "--data"), linkIndex = Array.IndexOf(e.Args, "--shared-link");
+            if (Array.IndexOf(e.Args, "--shared-link") >= 0)
+            {
+                MessageBox.Show("Map and gamemode links are no longer supported. Browse Community in SGL instead.", "SGL");
+                Shutdown();
+                return;
+            }
+            int dataIndex = Array.IndexOf(e.Args, "--data");
             string data = dataIndex >= 0 && dataIndex + 1 < e.Args.Length ? e.Args[dataIndex + 1] : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SGL");
-            string link = linkIndex >= 0 && linkIndex + 1 < e.Args.Length ? e.Args[linkIndex + 1] : "";
-            if (linkIndex >= 0 && (linkIndex != 0 || e.Args.Length != 2 || link.Length > 4096))
-                throw new InvalidDataException("Invalid SGL link invocation.");
-            activation = new SharedLinkActivation(data);
+            activation = new SingleInstanceActivation(data);
             if (!activation.IsFirst)
             {
-                await activation.Forward(link);
+                await activation.Forward();
                 Shutdown();
                 return;
             }
             var window = new MainWindow(e.Args);
             window.Show();
-            _ = activation.Listen(message => Dispatcher.BeginInvoke(() => { window.Show(); if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal; window.Activate(); if (message.Length > 0) window.AcceptSharedLink(message); }));
+            _ = activation.Listen(() => Dispatcher.BeginInvoke(() => { window.Show(); if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal; window.Activate(); }));
         }
         catch (Exception error) { MessageBox.Show(error.ToString(), "SGL could not start"); Shutdown(1); }
     }

@@ -6,15 +6,19 @@ public sealed record DeletionResult(string BackupDirectory, IReadOnlyList<string
 public sealed partial class GameStore
 {
     public DeletionResult Delete(GameSnapshot expected, string contentType, string fileId)
+        => DeleteMany(expected, contentType, [fileId]);
+
+    public DeletionResult DeleteMany(GameSnapshot expected, string contentType, IEnumerable<string> fileIds)
     {
         CheckClosed();
         CheckCurrent(expected);
-        if (contentType is not ("CustomModes" or "MapCreator") || !Maps.ValidId(fileId))
-            throw new InvalidDataException("Choose a valid installed map or gamemode to delete.");
+        var ids = fileIds.Distinct(StringComparer.Ordinal).ToArray();
+        if (contentType is not ("CustomModes" or "MapCreator") || ids.Length == 0 || ids.Any(id => !Maps.ValidId(id)))
+            throw new InvalidDataException("Choose valid installed maps or gamemodes to delete.");
         var doc = Configuration.Clone(expected.Manifest);
         var entries = doc["Files"]!.AsArray();
-        var entry = entries.OfType<JsonObject>().SingleOrDefault(f => (string?)f["ContentType"] == contentType && (string?)f["FileId"] == fileId)
-            ?? throw new IOException("This item no longer exists. Refresh before deleting.");
+        var selected = ids.Select(id => entries.OfType<JsonObject>().SingleOrDefault(f => (string?)f["ContentType"] == contentType && (string?)f["FileId"] == id)
+            ?? throw new IOException("A selected item no longer exists. Refresh before deleting.")).ToArray();
         string contentRoot = Inside(Root, contentType);
         void CheckPath(string path)
         {
@@ -25,36 +29,41 @@ public sealed partial class GameStore
                     throw new InvalidDataException("Deletion cannot follow a linked file or folder; nothing was deleted.");
         }
         var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var save in entry["Saves"]?.AsArray().OfType<JsonObject>() ?? [])
-            targets.Add(Inside(Root, (string?)save["RelativePath"] ?? ""));
-        // Include old/unregistered saves, so a folder scan cannot resurrect the item.
-        string flat = Inside(Root, contentType + "/" + fileId + ".bin"), native = Inside(Root, contentType + "/" + fileId);
-        CheckPath(flat);
-        CheckPath(native);
-        if (File.Exists(flat))
-            targets.Add(flat);
-        if (Directory.Exists(native))
-            foreach (string path in Directory.GetFiles(native, "*.bin", SearchOption.TopDirectoryOnly))
-                targets.Add(path);
+        foreach (var entry in selected)
+        {
+            foreach (var save in entry["Saves"]?.AsArray().OfType<JsonObject>() ?? [])
+                targets.Add(Inside(Root, (string?)save["RelativePath"] ?? ""));
+            // Include old/unregistered saves, so a folder scan cannot resurrect an item.
+            string fileId = (string)entry["FileId"]!;
+            string flat = Inside(Root, contentType + "/" + fileId + ".bin"), native = Inside(Root, contentType + "/" + fileId);
+            CheckPath(flat);
+            CheckPath(native);
+            if (File.Exists(flat)) targets.Add(flat);
+            if (Directory.Exists(native))
+                foreach (string path in Directory.GetFiles(native, "*.bin", SearchOption.TopDirectoryOnly))
+                    targets.Add(path);
+        }
         foreach (string path in targets)
             CheckPath(path);
-        var shared = entries.OfType<JsonObject>().Where(f => f != entry).SelectMany(f => f["Saves"]?.AsArray().OfType<JsonObject>() ?? []).Select(s => Inside(Root, (string?)s["RelativePath"] ?? "")).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var shared = entries.OfType<JsonObject>().Where(f => !selected.Contains(f)).SelectMany(f => f["Saves"]?.AsArray().OfType<JsonObject>() ?? []).Select(s => Inside(Root, (string?)s["RelativePath"] ?? "")).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (targets.Any(shared.Contains))
             throw new InvalidDataException("Another installed item references one of these files; nothing was deleted.");
         var hashes = targets.ToDictionary(path => path, path => Json.Hash(File.ReadAllBytes(path)), StringComparer.OrdinalIgnoreCase);
-        string backup = CreateBackup(File.ReadAllBytes(ManifestPath), expected, [fileId]);
+        string backup = CreateBackup(File.ReadAllBytes(ManifestPath), expected, ids);
         var operation = new JsonObject
         {
             ["operation"] = "delete",
             ["contentType"] = contentType,
-            ["fileId"] = fileId,
-            ["name"] = (string?)entry["FileName"],
+            ["fileId"] = ids.Length == 1 ? ids[0] : null,
+            ["name"] = selected.Length == 1 ? (string?)selected[0]["FileName"] : null,
+            ["fileIds"] = new JsonArray(ids.Select(id => (JsonNode)JsonValue.Create(id)!).ToArray()),
+            ["names"] = new JsonArray(selected.Select(f => f["FileName"]?.DeepClone()).ToArray()),
             ["state"] = "prepared",
             ["files"] = new JsonArray(targets.Select(path => (JsonNode)JsonValue.Create(Path.GetRelativePath(Root, path).Replace('\\', '/'))!).ToArray())
         };
         string journal = Path.Combine(backup, "operation.json");
         Json.Atomic(journal, operation.ToJsonString());
-        entries.Remove(entry);
+        foreach (var entry in selected) entries.Remove(entry);
         string temp = ManifestPath + ".delete-" + Guid.NewGuid().ToString("N");
         try
         {

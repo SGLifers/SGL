@@ -22,7 +22,9 @@ public partial class MainWindow : Window
         dataRoot = Arg("--data") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SGL");
         Directory.CreateDirectory(dataRoot);
         InitializeComponent();
-        Tabs.SelectionChanged += MapsTabSelected;
+        InitializeLoadoutTools();
+        Base.ItemsSource = BaseModes.All;
+        Base.SelectedValue = "koth";
         loading = true;
         var prefs = Preferences();
         RestorePaneWidths(prefs);
@@ -30,17 +32,18 @@ public partial class MainWindow : Window
         AutoUpdate.IsChecked = (bool?)prefs["autoUpdate"] ?? true;
         loading = false;
         InitializeSharing();
-        Tabs.SelectionChanged += (s, e) => { if (ReferenceEquals(e.Source, Tabs) && SharedTab.IsSelected) RefreshSharingSources(); };
+        InitializeContentNavigation();
         SizeChanged += (s, e) => ApplyPaneWidths();
         ModePanes.SizeChanged += (s, e) => ApplyPaneWidths();
+        SettingsPanes.SizeChanged += (s, e) => ApplyPaneWidths();
         MapPanes.SizeChanged += (s, e) => ApplyPaneWidths();
-        Folder.TextChanged += (s, e) => { store = null; snapshot = null; UpdateMapTagDetails(); Status.Text = "Folder changed. Refresh to scan this CloudSave folder before saving."; };
+        Folder.TextChanged += (s, e) => { store = null; snapshot = null; UpdateMapTagDetails(); UpdateInstalledMapDetails(); Status.Text = "Folder changed. Refresh to scan this CloudSave folder before saving."; };
         VersionLabel.Text = "Community preview · " + typeof(MainWindow).Assembly.GetName().Version?.ToString(3);
         var categories = Configuration.Schema["ui"]!["categories"]!.AsArray().Select(n => n!.GetValue<string>()).ToList();
         Categories.ItemsSource = categories;
         Categories.SelectedItem = "Players";
-        Loaded += async (s, e) => { Refresh(false); RecoverDraft(); if (payload == null) NewDocument("koth"); string? health = Arg("--update-health"); if (health != null && Path.GetFullPath(health).StartsWith(Path.GetFullPath(Path.Combine(dataRoot, "Updates")) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) Json.Atomic(health, "ready"); if (Arg("--shared-link") is string link && link.Length > 0) AcceptSharedLink(link); if (AutoUpdate.IsChecked == true && Arg("--no-update") == null) await CheckUpdate(false); };
-        Closing += (s, e) => { if ((dirty || invalid.Count > 0) && !Confirm("Discard the unsaved editor changes? You can cancel and save a draft first.")) { e.Cancel = true; return; } history?.Dispose(); };
+        Loaded += async (s, e) => { Refresh(false); if (payload == null) NewDocument("koth"); string? health = Arg("--update-health"); if (health != null && Path.GetFullPath(health).StartsWith(Path.GetFullPath(Path.Combine(dataRoot, "Updates")) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) Json.Atomic(health, "ready"); if (AutoUpdate.IsChecked == true && Arg("--no-update") == null) await CheckUpdate(false); };
+        Closing += (s, e) => { if ((dirty || invalid.Count > 0) && !Confirm("Discard the unsaved editor changes?")) { e.Cancel = true; return; } history?.Dispose(); };
     }
     string? Arg(string key)
     {
@@ -54,24 +57,6 @@ public partial class MainWindow : Window
             return (JsonObject)Json.Read(File.ReadAllText(Path.Combine(dataRoot, "settings.json")));
         }
         catch { return new(); }
-    }
-    void RecoverDraft()
-    {
-        string pending = Path.Combine(dataRoot, "pending-save.json");
-        if (!File.Exists(pending))
-            return;
-        try
-        {
-            string text = File.ReadAllText(pending);
-            var p = (JsonObject)Json.Read(text);
-            Modes.Validate(Configuration.Wrapped(p));
-            string path = Path.Combine(DraftDirectory, "Recovered-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".json");
-            Json.Atomic(path, text);
-            File.Delete(pending);
-            Load(p);
-            Status.Text = "Recovered an interrupted-save draft. Review it before applying; a game save may already have completed. Copy retained in Drafts.";
-        }
-        catch { Status.Text = "An interrupted-save file could not be recovered. It was retained in the SGL data folder."; }
     }
     void SavePreferences()
     {
@@ -101,7 +86,7 @@ public partial class MainWindow : Window
         MessageBox.Show(this, error.Message, "SGL", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
     bool Confirm(string text) => MessageBox.Show(this, text, "SGL", MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK;
-    bool CanLeave() => !(dirty || invalid.Count > 0) || Confirm("Discard unsaved editor changes? Save a draft first if you want to keep them.");
+    bool CanLeave() => !(dirty || invalid.Count > 0) || Confirm("Discard unsaved editor changes?");
     void Refresh(bool announce = true)
     {
         try
@@ -113,7 +98,7 @@ public partial class MainWindow : Window
             history = new History(HistoryDirectory);
             string? commit = history.Capture(next, snapshot == null ? "Startup: capture saved gamemodes" : "Detected changes outside SGL");
             snapshot = next;
-            Installed.ItemsSource = next.Modes.Where(m => m.Name.Contains(Search.Text, StringComparison.OrdinalIgnoreCase)).ToArray();
+            FilterModes();
             RefreshMaps();
             RefreshSharingSources();
             UpdateRevisions();
@@ -129,7 +114,7 @@ public partial class MainWindow : Window
     {
         if (Installed == null || snapshot == null)
             return;
-        Installed.ItemsSource = snapshot.Modes.Where(m => m.Name.Contains(Search.Text, StringComparison.OrdinalIgnoreCase)).ToArray();
+        FilterModes();
     }
     void BrowseFolder(object s, RoutedEventArgs e)
     {
@@ -147,11 +132,16 @@ public partial class MainWindow : Window
     }
     void ModeSelected(object s, SelectionChangedEventArgs e)
     {
-        if (Installed.SelectedItem is SavedMode mode)
+        if (updatingModeSelection) return;
+        UpdateModeSelectionButtons();
+        if (SelectedModes is [SavedMode mode] && mode.Id != selectedId)
         {
             if (!CanLeave())
             {
-                Installed.SelectedItem = null;
+                updatingModeSelection = true;
+                try { Installed.SelectedItem = snapshot?.Modes.FirstOrDefault(m => m.Id == selectedId); }
+                finally { updatingModeSelection = false; }
+                UpdateModeSelectionButtons();
                 return;
             }
             Load(mode.Payload, mode.Id);
@@ -170,20 +160,22 @@ public partial class MainWindow : Window
         invalid.Clear();
         dirty = false;
         loading = false;
+        ShowModeEditor();
         Render();
         RefreshSharingSources();
     }
     void NewDocument(string basis)
     {
         var p = Configuration.New(basis);
-        p["Options"]!["CustomName"] = "New " + (basis == "koth" ? "KOTH" : basis.ToUpperInvariant());
+        p["Options"]!["CustomName"] = "New " + BaseModes.Find(basis).Name;
+        Base.SelectedValue = basis;
         Load(p);
         Status.Text = "New mode. Choose a loadout and review the base rules.";
     }
     void NewMode(object s, RoutedEventArgs e)
     {
-        if (CanLeave())
-            NewDocument((string)((ComboBoxItem)Base.SelectedItem).Tag);
+        if (CanLeave() && Base.SelectedItem is BaseMode basis)
+            NewDocument(basis.Id);
     }
     void NameChanged(object s, TextChangedEventArgs e)
     {
@@ -387,6 +379,7 @@ public partial class MainWindow : Window
     }
     void RenderLoadout()
     {
+        Rows.Children.Add(loadoutTools);
         Rows.Children.Add(new TextBlock { Text = "Custom starting loadout · SGL extra", Foreground = Brush("#F3BE4F"), Margin = new Thickness(0, 0, 0, 14) });
         var ids = Configuration.Loadout(payload!);
         Rows.Children.Add(new TextBlock { Text = ids == null ? "This mode uses base loadouts. Choosing all three items will set a custom starting loadout." : "Explicit loadout edits replace starting-item selection. Other rules remain unchanged.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
@@ -427,22 +420,20 @@ public partial class MainWindow : Window
         if (store == null || snapshot == null)
             throw new InvalidDataException("Locate your CloudSave folder and refresh first.");
         if (selectedId != null && snapshot.Modes.SingleOrDefault(m => m.Id == selectedId)?.ArchiveHash != openedArchiveHash)
-            throw new IOException("This mode changed outside SGL after you opened it. Reopen it, or duplicate your draft before saving.");
+            throw new IOException("This mode changed outside SGL after you opened it. Reopen it, or duplicate your edited mode before saving.");
         if (Modes.GameRunning())
-            throw new InvalidOperationException("Close Splitgate before saving to the game. You can keep editing or save a draft while it runs.");
+            throw new InvalidOperationException("Close Splitgate before saving to the game. You can keep editing while it runs.");
         string outside = string.Join(", ", Configuration.Fields.Where(f => f["ui"]?["min"] != null && Configuration.Value(payload!, f) is JsonNode v && double.TryParse(Text(v), CultureInfo.InvariantCulture, out var n) && (n < (double)f["ui"]!["min"]! || n > (double)f["ui"]!["max"]!)).Select(f => (string)f["ui"]!["label"]!));
         if (outside.Length > 0 && !Confirm("Outside documented in-game slider range: " + outside + ". The game may clamp or ignore these values. Save anyway?"))
             return;
         if (history == null)
             throw new IOException("History is unavailable. Refresh and resolve the history error before saving.");
         history.Capture(snapshot, "Checkpoint before SGL save");
-        Json.Atomic(Path.Combine(dataRoot, "pending-save.json"), payload!.ToJsonString());
         lastBackup = store.Apply(snapshot, selectedId, payload!);
         var next = store.Read();
         history.Capture(next, "SGL save: " + Configuration.Name(payload!));
         snapshot = next;
         dirty = false;
-        File.Delete(Path.Combine(dataRoot, "pending-save.json"));
         Refresh(false);
         var saved = next.Modes.Single(m => m.Name == Configuration.Name(payload!));
         Load(saved.Payload, saved.Id);
@@ -482,17 +473,6 @@ public partial class MainWindow : Window
         dialog.ShowDialog();
     }
     void Presets(object s, RoutedEventArgs e) => Run(() => { if (!CanLeave()) return; string[] names = ["Sticky Fists TDM", "Sticky Fists KOTH", "Sticky Fists Domination", "Ranked Loadout 1v1", "Tempo 1v1", "Blink 1v1"]; Choose("Double-click a community preset", names.Select(name => new Choice(name, () => Load((JsonObject)Json.Read(Modes.Resource(name.Replace(' ', '-') + ".json"))))).ToArray()); });
-    void SaveDraft(object s, RoutedEventArgs e) => Run(() => { EnsureValid(); var dialog = new SaveFileDialog { Filter = "SGL-compatible mode JSON|*.json", InitialDirectory = DraftDirectory, FileName = "Mode.json" }; if (dialog.ShowDialog(this) == true) { Json.Atomic(dialog.FileName, payload!.ToJsonString()); dirty = false; DirtyLabel.Text = "Draft saved"; } });
-    string DraftDirectory
-    {
-        get
-        {
-            string path = Path.Combine(dataRoot, "Drafts");
-            Directory.CreateDirectory(path);
-            return path;
-        }
-    }
-    void OpenDraft(object s, RoutedEventArgs e) => Run(() => { if (!CanLeave()) return; var d = new OpenFileDialog { Filter = "Mode JSON|*.json", InitialDirectory = DraftDirectory }; if (d.ShowDialog(this) == true) Load(Configuration.ReadArchive(Modes.Pack(Modes.ReadRecipes(d.FileName)[0]))); });
     void Export(object s, RoutedEventArgs e) => Run(() => { if (payload == null) throw new InvalidDataException("Open a mode first."); if (Configuration.Supported(payload)) EnsureValid(); var dialog = new SaveFileDialog { Filter = "Mode JSON|*.json", FileName = "Mode.json" }; if (dialog.ShowDialog(this) == true) Json.Atomic(dialog.FileName, Json.Canonical(payload)); });
     void ExportPack(object s, RoutedEventArgs e) => Run(() => { if (snapshot == null) throw new IOException("Refresh first."); var dialog = new SaveFileDialog { Filter = "Mode pack JSON|*.json", FileName = "SGL-Modes.json" }; if (dialog.ShowDialog(this) == true) { var modes = new JsonArray(snapshot.Modes.Select(m => (JsonNode)new JsonObject { ["name"] = m.Name, ["payload"] = m.Payload.DeepClone() }).ToArray()); Json.Atomic(dialog.FileName, new JsonObject { ["format"] = "spingate-payload-pack", ["version"] = 1, ["modes"] = modes }.ToJsonString()); } });
     void UpdateRevisions()
@@ -506,12 +486,24 @@ public partial class MainWindow : Window
             BeforeRevision.SelectedIndex = Math.Min(1, revisions.Length - 1);
         }
     }
+    void ShowModeHistory(object sender, RoutedEventArgs e)
+    {
+        ModeEditor.Visibility = Visibility.Collapsed;
+        ModeHistoryPanel.Visibility = Visibility.Visible;
+        UpdateRevisions();
+    }
+    void ShowModeEditor()
+    {
+        ModeHistoryPanel.Visibility = Visibility.Collapsed;
+        ModeEditor.Visibility = Visibility.Visible;
+    }
+    void BackToModeEditor(object sender, RoutedEventArgs e) => ShowModeEditor();
     void RevisionChanged(object s, SelectionChangedEventArgs e)
     {
         if (history != null && BeforeRevision.SelectedItem is Revision a && AfterRevision.SelectedItem is Revision b)
             Run(() => DiffText.Text = history.Compare(a.Id, b.Id));
     }
-    void RestoreRevision(object s, RoutedEventArgs e) => Run(() => { if (history == null || BeforeRevision.SelectedItem is not Revision r) throw new InvalidDataException("Select an older snapshot first."); if (!CanLeave()) return; var old = history.Snapshot(r.Id); void Restore(string id) { Load(history.Mode(r.Id, id), snapshot?.Modes.Any(m => m.Id == id) == true ? id : null); MarkDirty(); Tabs.SelectedIndex = 0; Status.Text = "Revision loaded into editor. Review and click Save to game to restore it as a new revision."; } if (selectedId != null && old[selectedId] != null) Restore(selectedId); else Choose("Double-click a historical mode to restore", old.Select(p => new Choice(Configuration.Name(p.Value!.AsObject()), () => Restore(p.Key))).ToArray()); });
+    void RestoreRevision(object s, RoutedEventArgs e) => Run(() => { if (history == null || BeforeRevision.SelectedItem is not Revision r) throw new InvalidDataException("Select an older snapshot first."); if (!CanLeave()) return; var old = history.Snapshot(r.Id); void Restore(string id) { Load(history.Mode(r.Id, id), snapshot?.Modes.Any(m => m.Id == id) == true ? id : null); MarkDirty(); NavigateToContent("mode", "installed"); Status.Text = "Revision loaded into editor. Review and click Save to game to restore it as a new revision."; } if (selectedId != null && old[selectedId] != null) Restore(selectedId); else Choose("Double-click a historical mode to restore", old.Select(p => new Choice(Configuration.Name(p.Value!.AsObject()), () => Restore(p.Key))).ToArray()); });
     void OpenBackupFolder(object s, RoutedEventArgs e) => Run(() => OpenPath(Backups.SelectedItem as string ?? lastBackup ?? Path.Combine(Folder.Text, "Backup")));
     void RestoreBackup(object s, RoutedEventArgs e) => Run(() => { if (store == null || snapshot == null || Backups.SelectedItem is not string path) throw new InvalidDataException("Select a backup first."); if (!CanLeave() || !Confirm("Restore the COMPLETE save index from this backup? Later registrations will no longer be listed. A safety backup is created first.\n\n" + path)) return; history!.Capture(snapshot, "Checkpoint before manifest restore"); lastBackup = store.RestoreBackup(snapshot, path); history.Capture(store.Read(), "Restored complete manifest backup"); dirty = false; Refresh(); });
     static void OpenPath(string path) => Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
@@ -538,7 +530,7 @@ public partial class MainWindow : Window
             Status.Text = "Verified update " + update.Value.Release.Version + " downloaded.";
             if (dirty || invalid.Count > 0 || libraryBusy)
             {
-                Status.Text += " Save your draft and restart SGL to apply it.";
+                Status.Text += " Save your changes and restart SGL to apply it.";
                 return;
             }
             if (manual && !Confirm("Install the verified update and restart SGL?"))

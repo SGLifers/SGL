@@ -62,7 +62,10 @@ namespace SGL.Core
         {
             return a is bool || a is string ? Equals(a, b) : Number(a) == Number(b);
         }
-        public static readonly Dictionary<string, string> VariantNames = new Dictionary<string, string> {
+        public static readonly Dictionary<string, string> VariantNames = CreateVariantNames();
+        static Dictionary<string, string> CreateVariantNames()
+        {
+            var names = new Dictionary<string, string> {
             {"PortalWarsGameVariant:GV_KOTH_Team_Default", "King of the Hill"},
             {"PortalWarsGameVariant:GV_Deathmatch_Team_SWAT_Aeros", "SWAT"},
             {"PortalWarsGameVariant:GV_Deathmatch_Team_1round_Default", "Team Deathmatch"},
@@ -70,7 +73,11 @@ namespace SGL.Core
             {"PortalWarsGameVariant:GV_Deathmatch_Team_1v1", "1v1"},
             {"PortalWarsGameVariant:GV_Deathmatch_Team_BigHeadSnipers", "Big Head Snipers"},
             {"PortalWarsGameVariant:GV_Splitball_Team_Default", "Splitball"}
-        };
+            };
+            foreach (var basis in BaseModes.All)
+                names.TryAdd(basis.Variant, basis.Name);
+            return names;
+        }
         static bool Compiled(Dictionary<string, object> recipe)
         {
             return recipe.ContainsKey("format") && Equals(recipe["format"], "spingate-payload");

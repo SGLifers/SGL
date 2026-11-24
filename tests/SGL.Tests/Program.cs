@@ -7,6 +7,10 @@ using SGL.Core;
 int assertions = 0;
 void Check(bool test, string message) { assertions++; if (!test) throw new Exception(message); }
 void Reject(Action action, string message) { bool failed = false; try { action(); } catch { failed = true; } Check(failed, message); }
+BaseModeChecks.Run(Check);
+BatchActionChecks.Run(Check);
+LibraryBrowseChecks.Run(Check);
+InstalledPreviewChecks.Run(Check);
 var searchableFields = Configuration.Fields.ToArray();
 Check(searchableFields.Where(f => SettingSearch.Matches(f, "friendly-fire")).Any(f => (string?)f["id"] == "friendlyFire"), "Setting search missed punctuation-separated words");
 Check(searchableFields.Where(f => SettingSearch.Matches(f, "BOTS difficulty")).Any(f => (string?)f["id"] == "botDifficulty"), "Setting search missed another category");

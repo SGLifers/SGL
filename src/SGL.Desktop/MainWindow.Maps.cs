@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -28,140 +29,110 @@ public partial class MainWindow
         RefreshMapLinks();
         UpdateMapInstallButton();
     }
-    async void MapsTabSelected(object sender, SelectionChangedEventArgs e)
-    {
-        if (ReferenceEquals(e.Source, Tabs) && MapsTab.IsSelected && !catalogLoaded && !catalogLoading)
-            await LoadCatalog(false);
-    }
     async void RefreshCatalogClick(object sender, RoutedEventArgs e) => await LoadCatalog(true);
     async Task LoadCatalog(bool refresh)
     {
-        if (catalogLoading)
-            return;
+        if (catalogLoading) return;
         catalogLoading = true;
         RefreshCatalogButton.IsEnabled = false;
         try
         {
-            MapStatus.Text = "Loading community map catalog…";
             mapCatalog = await Maps.Catalog(MapCache, refresh);
             catalogLoaded = true;
-            RefreshMapTagFilter();
-            string? category = MapCategory.SelectedItem as string;
-            MapCategory.ItemsSource = new[] { "All" }.Concat(mapCatalog.Select(m => m.Category).Distinct().Order()).ToArray();
-            MapCategory.SelectedItem = category ?? "All";
-            FilterMaps();
-            FilterInstalledMaps();
-            MapStatus.Text = $"{mapCatalog.Length:N0} community maps. Catalog cached for offline browsing; installation downloads the selected map.";
+            RefreshMapTagFilter(); FilterSharedItems();
         }
         catch (Exception error)
         {
             if (File.Exists(MapCache))
             {
-                try
-                {
-                    mapCatalog = await Maps.Catalog(MapCache);
-                    catalogLoaded = true;
-                    RefreshMapTagFilter();
-                    MapCategory.ItemsSource = new[] { "All" }.Concat(mapCatalog.Select(m => m.Category).Distinct().Order()).ToArray();
-                    MapCategory.SelectedItem = "All";
-                    FilterMaps();
-                    FilterInstalledMaps();
-                    MapStatus.Text = "Using cached catalog. Refresh failed: " + error.Message;
-                }
-                catch { MapStatus.Text = "Cannot load map catalog: " + error.Message; }
+                try { mapCatalog = await Maps.Catalog(MapCache); catalogLoaded = true; FilterSharedItems(); }
+                catch { LibraryStatus.Text = "Cannot load the community catalog: " + error.Message; }
             }
-            else
-                MapStatus.Text = "Cannot load map catalog: " + error.Message;
+            else LibraryStatus.Text = "Cannot load the community catalog: " + error.Message;
         }
         finally { catalogLoading = false; RefreshCatalogButton.IsEnabled = true; }
     }
-    void MapFilterChanged(object sender, SelectionChangedEventArgs e) => FilterMaps();
-    void MapSearchChanged(object sender, TextChangedEventArgs e) => FilterMaps();
-    void FilterMaps()
-    {
-        if (CommunityMaps == null || MapSearch == null)
-            return;
-        string? selected = SelectedCommunityMap?.Id;
-        string? installedSelection = SelectedInstalledMap?.Id;
-        string search = MapSearch.Text.Trim(), category = MapCategory?.SelectedItem as string ?? "All";
-        CommunityMaps.ItemsSource = mapCatalog.Where(m => (category == "All" || m.Category == category)
-            && MapTags.Matches(TagsFor(m.Id), "", SelectedTag)
-            && (search.Length == 0 || m.Name.Contains(search, StringComparison.OrdinalIgnoreCase) || m.Author.Contains(search, StringComparison.OrdinalIgnoreCase) || MapTags.Matches(TagsFor(m.Id), search))).Select(MapRow).ToArray();
-        CommunityMaps.SelectedItem = CommunityMaps.Items.OfType<MapListItem>().FirstOrDefault(m => m.Id == selected);
-        if (installedSelection != null) SelectInstalledMap(installedSelection);
-        UpdateMapTagDetails();
-    }
-    async void CommunityMapSelected(object sender, SelectionChangedEventArgs e)
+    void FilterMaps() => FilterSharedItems();
+    async void RefreshCommunitySelection(bool syncInstalled)
     {
         mapPreviewRequest?.Cancel();
         MapPreview.Source = null;
+        MapPreview.Visibility = SelectedCommunityMap != null ? Visibility.Visible : Visibility.Collapsed;
         UpdateMapInstallButton();
         if (SelectedCommunityMap is not CommunityMap map)
         {
-            MapDetails.Text = "Select a community map.";
-            UpdateMapTagDetails();
+            MapDetails.Text = $"{SelectedCommunityMaps.Length} catalog maps selected.";
+            CatalogTags.Text = "";
             return;
         }
-        MapDetails.Text = $"{map.Name}\nBy {map.Author} · {map.Category}";
-        SelectInstalledMap(map.Id);
-        UpdateMapTagDetails();
+        MapDetails.Text = $"{map.Name}\nBy {map.Author} · {map.Category} · Architects catalog";
+        CatalogTags.Text = TagSummary(map.Id);
         using var request = new CancellationTokenSource();
         mapPreviewRequest = request;
         try
         {
             byte[]? bytes = await Maps.Preview(map, request.Token);
-            if (bytes == null || request.IsCancellationRequested || !ReferenceEquals(SelectedCommunityMap, map))
-                return;
+            if (bytes == null || request.IsCancellationRequested || !ReferenceEquals(SelectedCommunityMap, map)) return;
             using var stream = new MemoryStream(bytes, false);
             var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.DecodePixelWidth = 700;
-            bitmap.StreamSource = stream;
-            bitmap.EndInit();
-            bitmap.Freeze();
+            bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.DecodePixelWidth = 700; bitmap.StreamSource = stream; bitmap.EndInit(); bitmap.Freeze();
             MapPreview.Source = bitmap;
         }
-        catch { /* A missing preview does not prevent map installation. */ }
+        catch { }
         finally { if (ReferenceEquals(mapPreviewRequest, request)) mapPreviewRequest = null; }
     }
-    void UpdateMapInstallButton()
+    void UpdateMapInstallButton() { UpdateLibrarySelectionState(); UpdateMapSelectionButtons(); UpdateModeSelectionButtons(); }
+    async void InstallMapClick(object sender, RoutedEventArgs e) => await InstallSelectedMaps();
+    async Task InstallSelectedMaps(HttpMessageHandler? handler = null, Func<bool>? isGameRunning = null)
     {
-        if (InstallMapButton == null)
+        if (SelectedCommunityMaps.Length == 0 || store == null || snapshot == null || mapDownload != null)
             return;
-        bool installed = SelectedCommunityMap is CommunityMap map && snapshot?.Maps.Any(m => m.Id == map.Id) == true;
-        InstallMapButton.Content = installed ? "Already installed" : "Install selected map";
-        InstallMapButton.IsEnabled = mapDownload == null && !installed && SelectedCommunityMap is CommunityMap && store != null && snapshot != null;
-    }
-    async void InstallMapClick(object sender, RoutedEventArgs e)
-    {
-        if (SelectedCommunityMap is not CommunityMap map || store == null || snapshot == null || mapDownload != null)
-            return;
+        var selected = SelectedCommunityMaps.DistinctBy(m => m.Id).ToArray();
+        var pending = selected.Where(m => !snapshot.Maps.Any(installed => installed.Id == m.Id)).ToArray();
+        if (pending.Length == 0) return;
+        int skipped = selected.Length - pending.Length, completed = 0;
         var target = store;
         var expected = snapshot;
         using var request = new CancellationTokenSource();
         mapDownload = request;
-        CancelMapButton.IsEnabled = true;
+        UpdateNavigationBusy();
+        LibraryCancelButton.IsEnabled = true;
         UpdateMapInstallButton();
         try
         {
-            if (Modes.GameRunning())
+            if ((isGameRunning ?? Modes.GameRunning)())
                 throw new InvalidOperationException("Close Splitgate before installing a map.");
-            MapStatus.Text = "Downloading " + map.Name + "…";
-            var progress = new Progress<double>(n => { if (!request.IsCancellationRequested) MapStatus.Text = $"Downloading {map.Name} · {n:F0}%"; });
-            byte[] bytes = await Maps.Download(map, request.Token, progress);
-            request.Token.ThrowIfCancellationRequested();
-            if (store != target || snapshot != expected)
-                throw new IOException("Save folder or snapshot changed during download. Select Install again after refreshing.");
-            history?.Capture(expected, "Checkpoint before map installation");
-            lastBackup = target.InstallMap(expected, map.Id, bytes, map.Name, map.Author);
-            Refresh();
-            SelectInstalledMap(map.Id);
-            MapStatus.Text = "Installed " + map.Name + ". Open the game's custom lobby and choose it from your maps. Backup: " + lastBackup;
+            foreach (var map in pending)
+            {
+                request.Token.ThrowIfCancellationRequested();
+                int position = completed;
+                MapStatus.Text = $"Downloading {position + 1}/{pending.Length}: {map.Name}…";
+                var progress = new Progress<double>(n => { if (!request.IsCancellationRequested && ReferenceEquals(mapDownload, request) && completed == position) MapStatus.Text = $"Downloading {position + 1}/{pending.Length}: {map.Name} · {n:F0}%"; });
+                byte[] bytes = await Maps.Download(map, request.Token, progress, handler);
+                request.Token.ThrowIfCancellationRequested();
+                if (store != target || snapshot != expected)
+                    throw new IOException("Save folder or snapshot changed during download. Refresh before installing the remaining maps.");
+                history?.Capture(expected, "Checkpoint before map installation");
+                lastBackup = target.InstallMap(expected, map.Id, bytes, map.Name, map.Author);
+                completed++;
+                expected = target.Read();
+                snapshot = expected;
+                history?.Capture(expected, "Installed map: " + map.Name);
+            }
+            MapStatus.Text = $"Installed {completed} map(s); skipped {skipped} already installed. Latest backup: {lastBackup}";
         }
-        catch (OperationCanceledException) { MapStatus.Text = "Map download canceled. Game saves were not changed."; }
-        catch (Exception error) { Report(error); MapStatus.Text = error.Message; }
-        finally { mapDownload = null; CancelMapButton.IsEnabled = false; UpdateMapInstallButton(); }
+        catch (OperationCanceledException) { MapStatus.Text = $"Installation canceled. Installed {completed}/{pending.Length}; skipped {skipped} already installed. Completed installations were kept."; }
+        catch (Exception error) { Report(error); MapStatus.Text = $"Installation stopped after {completed}/{pending.Length} installed; skipped {skipped} already installed. Completed installations were kept. " + error.Message; }
+        finally
+        {
+            string result = MapStatus.Text;
+            mapDownload = null;
+            UpdateNavigationBusy();
+            LibraryCancelButton.IsEnabled = false;
+            if (store == target) Refresh(false);
+            MapStatus.Text = result;
+            UpdateMapInstallButton();
+        }
     }
     void CancelMapClick(object sender, RoutedEventArgs e) => mapDownload?.Cancel();
     void ImportMapClick(object sender, RoutedEventArgs e) => Run(() =>
@@ -185,7 +156,21 @@ public partial class MainWindow
         SelectInstalledMap(id);
         MapStatus.Text = "Map imported. Backup: " + lastBackup;
     });
-    void InstalledMapSelected(object sender, SelectionChangedEventArgs e) => Run(() => { RefreshMapLinks(); UpdateMapTagDetails(); });
+    void InstalledMapSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (updatingMapSelections) return;
+        Run(UpdateInstalledMapDetails);
+    }
+    void UpdateInstalledMapDetails()
+    {
+        if (InstalledMapPreview == null) return;
+        var map = snapshot?.Maps.FirstOrDefault(m => m.Id == SelectedInstalledMap?.Id);
+        InstalledMapPreview.Map = map;
+        InstalledMapPreviewPanel.Visibility = map != null ? Visibility.Visible : Visibility.Collapsed;
+        RefreshMapLinks(); UpdateMapTagDetails(); UpdateMapSelectionButtons();
+        MapLocalDetails.Text = map != null ? map.Name + "\n" + map.Author + "\n" + LocalOrigin("map", map.Id, map.ArchiveHash)
+            : SelectedInstalledMaps.Length > 1 ? $"{SelectedInstalledMaps.Length} installed maps selected." : "Select one installed map to see its details.";
+    }
     void RefreshMapLinks()
     {
         if (AssociatedModes == null)
@@ -210,7 +195,7 @@ public partial class MainWindow
         if (AssociatedModes.SelectedItem is SavedMode mode && CanLeave())
         {
             Load(mode.Payload, mode.Id);
-            Tabs.SelectedIndex = 0;
+            NavigateToContent("mode", "installed");
         }
     }
     void MapWebsiteClick(object sender, RoutedEventArgs e) => Run(() => OpenPath(Maps.Website));

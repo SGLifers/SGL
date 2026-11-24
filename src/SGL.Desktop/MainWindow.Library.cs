@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Windows;
@@ -18,6 +19,8 @@ public partial class MainWindow
     string appliedLibraryTag = "", appliedLibraryCreator = "";
     bool filteringSharedItems;
     string editorShareId = Guid.NewGuid().ToString("N");
+    string? lastLibraryUser;
+    HttpMessageHandler? sharingTransport = null;
     string LibraryRoot
     {
         get
@@ -36,7 +39,7 @@ public partial class MainWindow
         string root = LibraryRoot;
         if (string.IsNullOrWhiteSpace(root))
             throw new InvalidOperationException("Sharing is not configured in this build. Portable package export and import work offline.");
-        return new(root, (string?)Session(root).Load()?["token"]);
+        return new(root, (string?)Session(root).Load()?["token"], sharingTransport);
     }
     void InitializeSharing()
     {
@@ -50,6 +53,20 @@ public partial class MainWindow
     void RefreshSharingAccount()
     {
         var user = string.IsNullOrWhiteSpace(LibraryRoot) ? null : Session(LibraryRoot).Load()?["user"];
+        string? account = (string?)user?["id"];
+        if (account != lastLibraryUser)
+        {
+            foreach (string key in browseContexts.Keys.Where(k => k.EndsWith(":mine", StringComparison.Ordinal)).ToArray()) browseContexts.Remove(key);
+            if (BrowsingMine) { sharedItems.Clear(); libraryCursor = null; FilterSharedItems(); }
+            if (lastLibraryUser != null)
+            {
+                publishingParent = null; publishingRevision = null;
+                PublishTitle.Clear(); PublishDescription.Clear(); PublishCredits.Clear();
+                PublicationEditor.Visibility = Visibility.Collapsed; LibraryBrowserPanel.Visibility = Visibility.Visible;
+                LibraryRevisions.ItemsSource = null; LibraryCompareRevision.ItemsSource = null; LibraryDetails.Text = "Select an item.";
+            }
+            lastLibraryUser = account;
+        }
         LibraryAccount.Text = user == null ? "Not signed in" : "Signed in as " + (string?)user["displayName"];
         LibrarySignInButton.Visibility = user == null ? Visibility.Visible : Visibility.Collapsed;
         LibrarySignOutButton.Visibility = user == null ? Visibility.Collapsed : Visibility.Visible;
@@ -58,14 +75,14 @@ public partial class MainWindow
     }
     async Task LibraryWork(Func<CancellationToken, Task> action)
     {
-        if (libraryBusy)
+        if (libraryBusy || mapDownload != null)
         {
             LibraryStatus.Text = "An operation is already in progress. Use Cancel to stop it.";
             return;
         }
         libraryBusy = true;
         LibraryItems.IsEnabled = false;
-        LibraryMine.IsEnabled = false;
+        UpdateNavigationBusy();
         LibraryTag.IsEnabled = LibraryCreator.IsEnabled = ApplyLibraryFiltersButton.IsEnabled = ClearLibraryFiltersButton.IsEnabled = false;
         using var request = new CancellationTokenSource();
         libraryRequest = request;
@@ -81,33 +98,37 @@ public partial class MainWindow
             RefreshSharingAccount();
             LibraryStatus.Text = error.Message;
         }
+        catch (HttpRequestException error) { LibraryStatus.Text = "Cloud content is unavailable. Local editing and cached catalog maps remain available. " + error.Message; }
         catch (Exception error) { LibraryStatus.Text = error.Message; Report(error); }
-        finally { libraryRequest = null; libraryBusy = false; LibraryItems.IsEnabled = true; LibraryMine.IsEnabled = true; LibraryTag.IsEnabled = LibraryCreator.IsEnabled = ApplyLibraryFiltersButton.IsEnabled = ClearLibraryFiltersButton.IsEnabled = true; }
+        finally { libraryRequest = null; libraryBusy = false; LibraryItems.IsEnabled = true; UpdateNavigationBusy(); UpdateLibrarySelectionState(); LibraryTag.IsEnabled = LibraryCreator.IsEnabled = ApplyLibraryFiltersButton.IsEnabled = ClearLibraryFiltersButton.IsEnabled = true; }
     }
-    async void LibrarySignIn(object sender, RoutedEventArgs e) => await LibraryWork(async cancel =>
-    {
-        using var client = SharingClient();
-        string verifier = LibraryClient.PkceVerifier();
-        var start = await client.Send("auth/start", new JsonObject { ["challenge"] = LibraryClient.PkceChallenge(verifier) }, cancel);
-        var uri = new Uri((string)start["authorizationUrl"]!);
-        var parameters = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=', 2)).ToDictionary(p => Uri.UnescapeDataString(p[0]), p => p.Length == 2 ? Uri.UnescapeDataString(p[1].Replace('+', ' ')) : "");
-        if (uri.Scheme != "https" || uri.Host != "discord.com" || !uri.IsDefaultPort || uri.UserInfo.Length > 0 || uri.AbsolutePath != "/oauth2/authorize" || parameters.GetValueOrDefault("scope") != "identify" || parameters.GetValueOrDefault("response_type") != "code")
-            throw new InvalidDataException("The service returned an unexpected Discord authorization request.");
-        OpenPath(uri.AbsoluteUri);
-        LibraryStatus.Text = "Complete Discord sign-in in your browser. Waiting for confirmation…";
-        for (int i = 0; i < 300; i++)
+    async void LibrarySignIn(object sender, RoutedEventArgs e) {
+        await LibraryWork(async cancel =>
         {
-            await Task.Delay(2000, cancel);
-            var result = await client.Send("auth/poll", new JsonObject { ["requestId"] = (string)start["requestId"]!, ["verifier"] = verifier }, cancel);
-            if ((string?)result["status"] != "ready")
-                continue;
-            Session(client.Root.AbsoluteUri).Save(result);
-            RefreshSharingAccount();
-            LibraryStatus.Text = "Signed in. Publications and revision attribution use this Discord account.";
-            return;
-        }
-        throw new IOException("Sign-in expired. Try again.");
-    });
+            using var client = SharingClient();
+            string verifier = LibraryClient.PkceVerifier();
+            var start = await client.Send("auth/start", new JsonObject { ["challenge"] = LibraryClient.PkceChallenge(verifier) }, cancel);
+            var uri = new Uri((string)start["authorizationUrl"]!);
+            var parameters = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=', 2)).ToDictionary(p => Uri.UnescapeDataString(p[0]), p => p.Length == 2 ? Uri.UnescapeDataString(p[1].Replace('+', ' ')) : "");
+            if (uri.Scheme != "https" || uri.Host != "discord.com" || !uri.IsDefaultPort || uri.UserInfo.Length > 0 || uri.AbsolutePath != "/oauth2/authorize" || parameters.GetValueOrDefault("scope") != "identify" || parameters.GetValueOrDefault("response_type") != "code")
+                throw new InvalidDataException("The service returned an unexpected Discord authorization request.");
+            OpenPath(uri.AbsoluteUri);
+            LibraryStatus.Text = "Complete Discord sign-in in your browser. Waiting for confirmation…";
+            for (int i = 0; i < 300; i++)
+            {
+                await Task.Delay(2000, cancel);
+                var result = await client.Send("auth/poll", new JsonObject { ["requestId"] = (string)start["requestId"]!, ["verifier"] = verifier }, cancel);
+                if ((string?)result["status"] != "ready")
+                    continue;
+                Session(client.Root.AbsoluteUri).Save(result);
+                RefreshSharingAccount();
+                LibraryStatus.Text = "Signed in. Publications and revision attribution use this Discord account.";
+                return;
+            }
+            throw new IOException("Sign-in expired. Try again.");
+        });
+        if (SignedInUser != null && BrowsingMine) await RefreshSharedLibrary();
+    }
     async void LibrarySignOut(object sender, RoutedEventArgs e) => await LibraryWork(async cancel =>
     {
         using var client = SharingClient();
@@ -119,29 +140,34 @@ public partial class MainWindow
         finally { Session(client.Root.AbsoluteUri).Clear(); RefreshSharingAccount(); }
         LibraryStatus.Text = "Signed out.";
     });
-    void LibraryCancel(object sender, RoutedEventArgs e) => libraryRequest?.Cancel();
+    void LibraryCancel(object sender, RoutedEventArgs e) { libraryRequest?.Cancel(); mapDownload?.Cancel(); }
     async void LibraryRefresh(object sender, RoutedEventArgs e) => await RefreshSharedLibrary();
-    async Task RefreshSharedLibrary() => await LibraryWork(async cancel =>
+    async Task RefreshSharedLibrary()
     {
-        using var client = SharingClient();
-        appliedLibraryTag = MapTags.Normalize([LibraryTag.Text]).FirstOrDefault() ?? "";
-        appliedLibraryCreator = LibraryCreator.Text.Trim();
-        LibraryStatus.Text = "Loading shared items…";
-        sharedItems.Clear();
-        libraryCursor = null;
-        FilterSharedItems();
-        var page = await ReadFilteredPage(client, null, cancel);
-        sharedItems.AddRange(page.Items);
-        libraryCursor = page.Cursor;
-        FilterSharedItems();
-        LibraryStatus.Text = sharedItems.Count + " matching items loaded." + (libraryCursor != null ? " Use Load more to continue searching." : " All results loaded.");
-    });
+        if (BrowsingMine && SignedInUser == null) { LibraryStatus.Text = "Sign in with Discord to see your uploads."; return; }
+        await LibraryWork(async cancel =>
+        {
+            using var client = SharingClient();
+            appliedLibraryTag = MapTags.Normalize([LibraryTag.Text]).FirstOrDefault() ?? "";
+            appliedLibraryCreator = LibraryCreator.Text.Trim();
+            LibraryStatus.Text = "Loading shared items…";
+            sharedItems.Clear();
+            libraryCursor = null;
+            FilterSharedItems();
+            var page = await ReadFilteredPage(client, null, cancel);
+            sharedItems.AddRange(page.Items);
+            libraryCursor = page.Cursor;
+            FilterSharedItems();
+            var context = browseContexts.GetValueOrDefault(BrowseKey) ?? new BrowseContext(); context.Loaded = true; browseContexts[BrowseKey] = context; SaveBrowseContext();
+            LibraryStatus.Text = sharedItems.Count + " SGL items loaded." + (libraryCursor != null ? " Use Load more to continue searching." : "") + (browseKind == "map" && !BrowsingMine ? $" {mapCatalog.Length} catalog maps available." : "");
+        });
+    }
     async Task<(LibraryItem[] Items, string? Cursor)> ReadFilteredPage(LibraryClient client, string? cursor, CancellationToken cancel)
     {
         for (int i = 0; ; i++)
         {
-            var page = await client.List(LibraryMine.IsChecked == true, cursor: cursor, cancel: cancel, tag: appliedLibraryTag, creator: appliedLibraryCreator);
-            var matches = page.Items.Where(item => item.Matches("", appliedLibraryTag, appliedLibraryCreator)).ToArray();
+            var page = await client.List(BrowsingMine, cursor: cursor, cancel: cancel, tag: appliedLibraryTag, creator: appliedLibraryCreator);
+            var matches = page.Items.Where(item => LibraryBrowseEntry.MatchesKind(item, browseKind) && (!BrowsingMine || item.OwnerId == SignedInUser) && item.Matches("", appliedLibraryTag, appliedLibraryCreator)).ToArray();
             if (matches.Length > 0 || page.Cursor == null || i == 4) return (matches, page.Cursor);
             cursor = page.Cursor;
         }
@@ -170,29 +196,18 @@ public partial class MainWindow
         LibraryStatus.Text = sharedItems.Count + " matching items loaded." + (libraryCursor != null ? " Use Load more to continue searching." : " All results loaded.");
     });
     void LibrarySearchChanged(object sender, TextChangedEventArgs e) => FilterSharedItems();
-    void FilterSharedItems()
-    {
-        if (LibraryItems == null || LibrarySearch == null) return;
-        string? selected = (LibraryItems.SelectedItem as LibraryItem)?.Id;
-        filteringSharedItems = true;
-        try
-        {
-            var matches = sharedItems.Where(i => i.Matches(LibrarySearch.Text.Trim(), appliedLibraryTag, appliedLibraryCreator)).DistinctBy(i => i.Id).ToArray();
-            LibraryItems.ItemsSource = matches;
-            LibraryItems.SelectedItem = matches.FirstOrDefault(i => i.Id == selected);
-        }
-        finally { filteringSharedItems = false; }
-        if (LibraryItems.SelectedItem == null && LibraryMapPreview != null)
-        {
-            libraryPreviewRequest?.Cancel();
-            LibraryMapPreview.PreviewDescriptor = null;
-            LibraryMapPreviewPanel.Visibility = Visibility.Collapsed;
-        }
-    }
     async void LibraryItemSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (LibraryItems.SelectedItem is LibraryItem item && !libraryBusy && !filteringSharedItems)
+        UpdateLibrarySelectionState();
+        if (filteringSharedItems) return;
+        if (SelectedCommunityMaps.Length > 0) { RefreshCommunitySelection(false); return; }
+        if (SelectedLibraryItem is LibraryItem item && !libraryBusy && !filteringSharedItems)
+        {
+            LibraryRevisions.ItemsSource = null;
+            LibraryCompareRevision.ItemsSource = null;
+            LibraryDetails.Text = item.Title;
             await LibraryWork(cancel => LoadSharedItem(item, null, cancel));
+        }
         else if (LibraryItems.SelectedItem == null && !filteringSharedItems)
             await RefreshSharedPreview();
     }
@@ -208,6 +223,10 @@ public partial class MainWindow
             choices.Insert(0, new LibraryRevision(descriptor["revision"]!.AsObject()));
         }
         revisionsCursor = revisions.Cursor;
+        SharedDetailsPanel.Visibility = Visibility.Visible;
+        CatalogDetailsPanel.Visibility = Visibility.Collapsed;
+        UpdatePublicationButton.IsEnabled = item.OwnerId == SignedInUser;
+        ForkPublicationButton.IsEnabled = item.OwnerId != SignedInUser;
         LibraryDetails.Text = $"{item.Title}\n{item.Kind} · Published by {item.OwnerName}\nDiscord ID: {item.Json["owner"]?["discordId"]}\n{item.Description}\n\nOriginal creator credits: {item.Json["credits"]}\nVisibility: {item.Json["visibility"]}";
         if (item.Tags.Length > 0) LibraryDetails.Text += "\nLatest tags: " + item.TagSummary;
         if (item.Json["forkOf"] is JsonObject fork)
@@ -218,7 +237,6 @@ public partial class MainWindow
         LibraryCompareRevision.SelectedItem = choices.FirstOrDefault(r => r.Id != selected) ?? choices.First();
         LibraryDiff.Text = "";
     }
-    async void LibraryOpenLink(object sender, RoutedEventArgs e) => await OpenLibraryLink(LibraryLink.Text);
     async void LibraryOlderRevisions(object sender, RoutedEventArgs e) => await LibraryWork(async cancel =>
     {
         var selected = SelectedShared();
@@ -238,30 +256,9 @@ public partial class MainWindow
         LibraryCompareRevision.SelectedItem = choices.FirstOrDefault(r => r.Id == comparison) ?? choices.Last();
         LibraryStatus.Text = choices.Count + " revisions loaded.";
     });
-    async Task OpenLibraryLink(string link) => await LibraryWork(async cancel =>
-    {
-        using var client = SharingClient();
-        var parsed = LibraryClient.ParseLink(link, client.Root);
-        var item = await client.Item(parsed.ItemId, cancel);
-        appliedLibraryTag = ""; appliedLibraryCreator = ""; libraryCursor = null;
-        LibraryTag.Clear(); LibraryCreator.Clear(); LibrarySearch.Clear();
-        sharedItems.RemoveAll(i => i.Id == item.Id);
-        sharedItems.Insert(0, item);
-        FilterSharedItems();
-        LibraryItems.SelectedItem = sharedItems.First(i => i.Id == item.Id);
-        await LoadSharedItem(item, parsed.RevisionId, cancel);
-        LibraryStatus.Text = "Shared item opened. Review the revision before installing.";
-    });
-    public async void AcceptSharedLink(string link)
-    {
-        SharedTab.IsSelected = true;
-        LibraryPages.SelectedIndex = 0;
-        LibraryLink.Text = link;
-        await OpenLibraryLink(link);
-    }
     (LibraryItem Item, LibraryRevision Revision) SelectedShared()
     {
-        if (LibraryItems.SelectedItem is not LibraryItem item || LibraryRevisions.SelectedItem is not LibraryRevision revision)
+        if (SelectedLibraryItem is not LibraryItem item || LibraryRevisions.SelectedItem is not LibraryRevision revision)
             throw new InvalidOperationException("Select a shared item and revision first.");
         return (item, revision);
     }
@@ -279,7 +276,7 @@ public partial class MainWindow
             throw new IOException("The save folder changed during download. Refresh and retry.");
         InstallSharedPackage(package, client.Root.AbsoluteUri);
     });
-    void InstallSharedPackage(SharedPackage package, string origin)
+    bool InstallSharedPackage(SharedPackage package, string origin, bool confirm = true)
     {
         if (store == null || snapshot == null)
             throw new IOException("Refresh the CloudSave folder first.");
@@ -290,8 +287,8 @@ public partial class MainWindow
             prompt += "\nLocal edits were detected. Separate copies will be installed to keep your edits.";
         if (!package.FromService)
             prompt += "\nCreator attribution in this offline file is supplied by the file and is not authenticated.";
-        if (!Confirm(prompt))
-            return;
+        if (confirm && !Confirm(prompt))
+            return false;
         _ = TagStore.Read();
         history?.Capture(snapshot, "Checkpoint before shared installation");
         var result = store.InstallShared(snapshot, package, SharedState, origin, copy);
@@ -318,6 +315,7 @@ public partial class MainWindow
         history?.Capture(store.Read(), "Installed shared content: " + package.Title);
         Refresh();
         LibraryStatus.Text = result.BackupDirectory.Length == 0 ? "This revision is already installed." : "Installed " + package.Title + ". Choose the map and gamemode separately in the game lobby. Backup: " + result.BackupDirectory;
+        return true;
     }
     async void LibraryCompare(object sender, RoutedEventArgs e) => await LibraryWork(async cancel =>
     {
@@ -339,13 +337,6 @@ public partial class MainWindow
         }
         LibraryDiff.Text = string.Join("\n\n", sections);
     });
-    void LibraryCopyLink(object sender, RoutedEventArgs e) => Run(() =>
-    {
-        var selected = SelectedShared();
-        using var client = SharingClient();
-        Clipboard.SetText(new Uri(client.Root, "share/" + selected.Item.Id + "?revision=" + selected.Revision.Id).AbsoluteUri);
-        LibraryStatus.Text = "Share link copied. It points to the selected revision.";
-    });
     async void SharedRevisionSelected(object sender, SelectionChangedEventArgs e)
     {
         if (LibraryRevisionAttribution != null && LibraryRevisions.SelectedItem is LibraryRevision revision)
@@ -360,7 +351,7 @@ public partial class MainWindow
     {
         libraryPreviewRequest?.Cancel();
         LibraryMapPreview.PreviewDescriptor = null;
-        if (LibraryItems.SelectedItem is not LibraryItem item || item.Kind == "mode" || LibraryRevisions.SelectedItem is not LibraryRevision revision)
+        if (SelectedLibraryItem is not LibraryItem item || item.Kind == "mode" || LibraryRevisions.SelectedItem is not LibraryRevision revision)
         {
             LibraryMapPreviewPanel.Visibility = Visibility.Collapsed;
             return;
@@ -376,7 +367,7 @@ public partial class MainWindow
                 using var client = SharingClient();
                 preview = (await client.Send($"items/{item.Id}/revisions/{revision.Id}", cancel: request.Token))["preview"] as JsonObject;
             }
-            if (!request.IsCancellationRequested && ReferenceEquals(LibraryItems.SelectedItem, item) && ReferenceEquals(LibraryRevisions.SelectedItem, revision))
+            if (!request.IsCancellationRequested && ReferenceEquals(SelectedLibraryItem, item) && ReferenceEquals(LibraryRevisions.SelectedItem, revision))
                 LibraryMapPreview.PreviewDescriptor = preview;
         }
         catch (LibraryException error) when (error.Status == HttpStatusCode.Unauthorized)
@@ -447,7 +438,6 @@ public partial class MainWindow
             throw new InvalidDataException("Package exceeds 130 MB.");
         InstallSharedPackage(SharedPackages.Read(File.ReadAllBytes(dialog.FileName)), "offline");
     });
-    void EnableSharedLinks(object sender, RoutedEventArgs e) => Run(() => { SharedLinkActivation.RegisterProtocol(); LibraryStatus.Text = "Open in SGL links are enabled for this Windows account."; });
     sealed record LocalShareSource(string Id, string Name);
     void RefreshSharingSources()
     {
@@ -473,13 +463,14 @@ public partial class MainWindow
     void ShareEditorMode(object sender, RoutedEventArgs e) => Run(() =>
     {
         EnsureValid();
+        NavigateToContent("mode", "mine");
+        ResetPublicationForm("mode");
         RefreshSharingSources();
         PublishKind.SelectedIndex = 1;
         PublishMode.SelectedValue = "__editor__";
         PublishTitle.Text = Configuration.Name(payload!);
         PublishAction.SelectedIndex = 0;
-        SharedTab.IsSelected = true;
-        LibraryPages.SelectedIndex = 1;
+        ShowPublicationForm();
     });
     string ShareKind => (string)((ComboBoxItem)PublishKind.SelectedItem).Tag;
     void PublishKindChanged(object sender, SelectionChangedEventArgs e)

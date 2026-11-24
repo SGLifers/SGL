@@ -26,14 +26,17 @@ public partial class MainWindow
         resizingPanes = true;
         try
         {
-            void Size(Grid grid, ColumnDefinition column, double preferred, double otherMinimum)
+            void Size(Grid grid, ColumnDefinition column, double preferred, double otherMinimum, double available)
             {
-                double upper = grid.ActualWidth > 0 ? Math.Max(column.MinWidth, Math.Min(column.MaxWidth, grid.ActualWidth - otherMinimum - 10)) : column.MaxWidth;
+                // Grid's fixed/minimum columns can make ActualWidth overflow its slot.
+                // Constrain against the workspace, so a narrower window shrinks the panes.
+                double width = available > 0 ? Math.Min(grid.ActualWidth > 0 ? grid.ActualWidth : available, available) : grid.ActualWidth;
+                double upper = width > 0 ? Math.Max(column.MinWidth, Math.Min(column.MaxWidth, width - otherMinimum - 10)) : column.MaxWidth;
                 column.Width = new GridLength(Math.Clamp(preferred, column.MinWidth, upper));
             }
-            Size(ModePanes, ModeSidebar, preferredModeWidth, 560);
-            Size(SettingsPanes, CategorySidebar, preferredCategoryWidth, 420);
-            Size(MapPanes, MapDetailsPane, preferredMapWidth, 300);
+            Size(ModePanes, ModeSidebar, preferredModeWidth, 560, ModeViews.ActualWidth - ModePanes.Margin.Left - ModePanes.Margin.Right);
+            Size(SettingsPanes, CategorySidebar, preferredCategoryWidth, 420, ModeEditor.ActualWidth);
+            Size(MapPanes, MapDetailsPane, preferredMapWidth, 300, MapViews.ActualWidth - 32);
         }
         finally { resizingPanes = false; }
     }

@@ -89,11 +89,6 @@ static class SharedLibraryTests
         var http = new LibraryHttp(bundleDescriptor, map, mode, check);
         using var client = new LibraryClient("https://sharing.example.test", "private-session", http);
         check(LibraryClient.PkceChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk") == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", "PKCE challenge did not match RFC vector");
-        var parsed = LibraryClient.ParseLink($"https://sharing.example.test/share/{bundleId}?revision={bundleRevision}", client.Root);
-        check(parsed.ItemId == bundleId && parsed.RevisionId == bundleRevision, "HTTPS share link lost pinned revision");
-        check(LibraryClient.ParseLink($"sgl://library/install?item={bundleId}&revision={bundleRevision}", client.Root) == parsed, "SGL protocol link differs from HTTPS link");
-        reject(() => LibraryClient.ParseLink($"https://evil.test/share/{bundleId}", client.Root), "Foreign share service accepted");
-        reject(() => LibraryClient.ParseLink($"sgl://library/install?item={bundleId}&api=https://evil.test", client.Root), "Protocol link could change API origin");
         var package = await client.Download(bundleId, bundleRevision);
         check(package.FromService && package.Entries.Count == 2, "Online bundle not downloaded");
         check(package.Entries.Single(e => e.Kind == "map").Data.SequenceEqual(map), "Map bytes changed in download");

@@ -122,6 +122,27 @@ public static class Maps
         using var client = Client(null);
         return await Fetch(client, OfficialAsset(map.Image, extension), 8_000_000, cancel);
     }
+    public static byte[]? InstalledPreview(string archivePath)
+    {
+        // Read only the image entry, so previews also work offline and reflect Map Lab edits.
+        using var file = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var zip = new ZipArchive(file, ZipArchiveMode.Read);
+        if (zip.Entries.Count > 1024) throw new InvalidDataException("Map archive has too many entries.");
+        var entry = zip.Entries.FirstOrDefault(e => e.FullName.Equals("Screenshot.jpg", StringComparison.OrdinalIgnoreCase))
+            ?? zip.Entries.FirstOrDefault(e => e.FullName.Equals("Screenshot.jpeg", StringComparison.OrdinalIgnoreCase) || e.FullName.Equals("Screenshot.png", StringComparison.OrdinalIgnoreCase));
+        if (entry == null || entry.Length == 0) return null;
+        if (entry.Length > 8_000_000) throw new InvalidDataException("Map screenshot exceeds 8 MB.");
+        using var input = entry.Open();
+        using var output = new MemoryStream();
+        byte[] buffer = new byte[65_536];
+        int count;
+        while ((count = input.Read(buffer)) > 0)
+        {
+            if (output.Length + count > 8_000_000) throw new InvalidDataException("Map screenshot exceeds 8 MB.");
+            output.Write(buffer, 0, count);
+        }
+        return output.ToArray();
+    }
     public static MapArchive Inspect(byte[] bytes)
     {
         if (bytes.Length < 4 || bytes.Length > MaximumArchive || bytes[0] != 'P' || bytes[1] != 'K')

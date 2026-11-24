@@ -141,30 +141,6 @@ public sealed class LibraryClient : IDisposable
         var result = await Send("items/" + id + "/revisions" + (cursor == null ? "" : "?cursor=" + Uri.EscapeDataString(cursor)), cancel: cancel);
         return (result["revisions"]!.AsArray().Select(n => new LibraryRevision(n!.AsObject())).ToArray(), (string?)result["cursor"]);
     }
-    public static (string ItemId, string? RevisionId) ParseLink(string value, Uri service)
-    {
-        value = value.Trim();
-        if (ValidId(value))
-            return (value, null);
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri))
-            throw new InvalidDataException("Paste an SGL share link or item identity.");
-        var query = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=', 2)).ToDictionary(p => Uri.UnescapeDataString(p[0]), p => p.Length == 2 ? Uri.UnescapeDataString(p[1]) : "");
-        string? id;
-        if (uri.Scheme == "sgl" && uri.Host == "library" && uri.AbsolutePath == "/install")
-        {
-            if (query.Keys.Any(k => k is not ("item" or "revision")))
-                throw new InvalidDataException("Unsupported SGL link parameters.");
-            id = query.GetValueOrDefault("item");
-        }
-        else if (uri.Scheme == "https" && uri.GetLeftPart(UriPartial.Authority) == service.GetLeftPart(UriPartial.Authority) && uri.AbsolutePath.StartsWith(service.AbsolutePath.TrimEnd('/') + "/share/", StringComparison.Ordinal))
-            id = uri.AbsolutePath.Split('/').Last();
-        else
-            throw new InvalidDataException("This link does not belong to the configured SGL sharing service.");
-        string? revision = query.GetValueOrDefault("revision");
-        if (!ValidId(id) || revision != null && !ValidId(revision))
-            throw new InvalidDataException("Invalid shared item or revision identity.");
-        return (id!, revision);
-    }
     static Uri StorageUrl(string value)
     {
         var uri = new Uri(value, UriKind.Absolute);
