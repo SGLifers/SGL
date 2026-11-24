@@ -18,7 +18,7 @@ public partial class MainWindow
     bool navigationReady, changingContentView;
     string BrowseKey => browseKind + ":" + browseView;
     bool BrowsingMine => browseView == "mine";
-    bool RemoteViewSelected => !SettingsTab.IsSelected && (MapsTab.IsSelected ? MapViews : ModeViews).SelectedIndex > 0;
+    bool RemoteViewSelected => (MapsTab.IsSelected || ModesTab.IsSelected) && (MapsTab.IsSelected ? MapViews : ModeViews).SelectedIndex > 0;
     string? SignedInUser => (string?)Session(LibraryRoot).Load()?["user"]?["id"];
     LibraryBrowseEntry[] SelectedLibraryRows => LibraryItems?.SelectedItems.OfType<LibraryBrowseEntry>().ToArray() ?? [];
     LibraryItem? SelectedLibraryItem => SelectedLibraryRows is [var row] ? row.Publication : null;
@@ -35,7 +35,7 @@ public partial class MainWindow
     async void ContentViewChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!navigationReady || changingContentView || (e.Source != Tabs && e.Source != ModeViews && e.Source != MapViews)) return;
-        if (SettingsTab.IsSelected) return;
+        if (SettingsTab.IsSelected || ModsTab.IsSelected) return;
         var views = MapsTab.IsSelected ? MapViews : ModeViews;
         if (views.SelectedIndex == 0) { if (MapsTab.IsSelected) { UpdateInstalledMapDetails(); } return; }
         ActivateLibraryContext(MapsTab.IsSelected ? "map" : "mode", views.SelectedIndex == 2 ? "mine" : "community");
@@ -105,7 +105,7 @@ public partial class MainWindow
     }
     void UpdateNavigationBusy()
     {
-        bool busy = libraryBusy || mapDownload != null;
+        bool busy = libraryBusy || mapDownload != null || modsBusy;
         LibraryCancelButton.IsEnabled = busy;
         LibraryItems.IsEnabled = !busy;
         UpdateLibrarySelectionState();

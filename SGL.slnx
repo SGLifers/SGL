@@ -5,6 +5,8 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SGL.Tests/SGL.Tests.csproj" />
+    <Project Path="tests/SGL.Desktop.ModChecks/SGL.Desktop.ModChecks.csproj" />
+    <Project Path="tests/SGL.ModRuntimeSmoke/SGL.ModRuntimeSmoke.csproj" />
     <Project Path="tests/UpdateFailureFixture/UpdateFailureFixture.csproj" />
   </Folder>
   <Folder Name="/tools/">

@@ -33,6 +33,7 @@ public partial class MainWindow : Window
         loading = false;
         InitializeSharing();
         InitializeContentNavigation();
+        InitializeMods();
         SizeChanged += (s, e) => ApplyPaneWidths();
         ModePanes.SizeChanged += (s, e) => ApplyPaneWidths();
         SettingsPanes.SizeChanged += (s, e) => ApplyPaneWidths();
@@ -43,7 +44,7 @@ public partial class MainWindow : Window
         Categories.ItemsSource = categories;
         Categories.SelectedItem = "Players";
         Loaded += async (s, e) => { Refresh(false); if (payload == null) NewDocument("koth"); string? health = Arg("--update-health"); if (health != null && Path.GetFullPath(health).StartsWith(Path.GetFullPath(Path.Combine(dataRoot, "Updates")) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) Json.Atomic(health, "ready"); if (AutoUpdate.IsChecked == true && Arg("--no-update") == null) await CheckUpdate(false); };
-        Closing += (s, e) => { if ((dirty || invalid.Count > 0) && !Confirm("Discard the unsaved editor changes?")) { e.Cancel = true; return; } history?.Dispose(); };
+        Closing += (s, e) => { if (e.Cancel) return; if ((dirty || invalid.Count > 0) && !Confirm("Discard the unsaved editor changes?")) { e.Cancel = true; return; } history?.Dispose(); };
     }
     string? Arg(string key)
     {
@@ -528,7 +529,7 @@ public partial class MainWindow : Window
                 return;
             }
             Status.Text = "Verified update " + update.Value.Release.Version + " downloaded.";
-            if (dirty || invalid.Count > 0 || libraryBusy)
+            if (dirty || invalid.Count > 0 || libraryBusy || modsBusy || modConfigDirty)
             {
                 Status.Text += " Save your changes and restart SGL to apply it.";
                 return;

@@ -11,6 +11,7 @@ BaseModeChecks.Run(Check);
 BatchActionChecks.Run(Check);
 LibraryBrowseChecks.Run(Check);
 InstalledPreviewChecks.Run(Check);
+await ModChecks.Run(Check);
 var searchableFields = Configuration.Fields.ToArray();
 Check(searchableFields.Where(f => SettingSearch.Matches(f, "friendly-fire")).Any(f => (string?)f["id"] == "friendlyFire"), "Setting search missed punctuation-separated words");
 Check(searchableFields.Where(f => SettingSearch.Matches(f, "BOTS difficulty")).Any(f => (string?)f["id"] == "botDifficulty"), "Setting search missed another category");

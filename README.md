@@ -29,6 +29,7 @@ The release targets Windows x64. Windows 10/11 compatibility needs testing on ea
 - Drag dividers to resize the installed-mode sidebar, settings categories and map details. Widths persist across restarts; Settings includes Reset pane widths.
 - Automatic backups, complete-manifest restoration, stale-write checks and game-running guards.
 - Signed update metadata and verified downloads from this repository; the Windows executable itself is unsigned.
+- Mods workspace with BotChatter and MapEditorBudgetMod, automatic discovery of published Lua mod folders, install/enable/disable/update actions, configuration editing and reversible file backups. The first enable installs a pinned, verified UE4SS runtime. See [Mods](docs/mods.md).
 - Portable `.sglpack` files for maps, gamemodes and paired bundles. Recipients install through SGL with a complete backup.
 - Maps and Gamemodes each have Installed, Community and My uploads views. Community combines the Architects map catalog and public SGL uploads; My uploads shows your publications, including legacy unlisted items. Discord sign-in, attributed immutable revisions, forks and pinned map-to-mode bundles are supported. The sharing endpoint is included in the app; publishing requires Discord sign-in. Offline packages work without an account. See [sharing](docs/sharing.md) and [deployment](sharing/README.md).
 
@@ -36,7 +37,9 @@ Unknown base variants are captured in history and exportable, but read-only. KOT
 
 Base modes are alphabetically ordered. Open **Base mode** and type in **Search base modes** to filter by part of a name or multiple words, then select a result and choose **New mode**. The selected base is retained when you close the search without choosing another mode.
 
-Use the left sidebar for **Gamemodes**, **Maps** and **Settings**; the workspace uses an underlined **Installed / Community / My uploads** selector. **CloudSave folder**, refresh and complete-save backups are under **Settings**. **History** opens inside **Gamemodes → Installed**; **Back to editor** retains your unsaved changes. **Clear selection** is enabled only when more than one item is selected.
+Use the left sidebar for **Gamemodes**, **Maps**, **Mods** and **Settings**. Maps and Gamemodes use an underlined **Installed / Community / My uploads** selector. **CloudSave folder**, refresh and complete-save backups are under **Settings**. **History** opens inside **Gamemodes → Installed**; **Back to editor** retains your unsaved changes. **Clear selection** is enabled only when more than one item is selected.
+
+**Mods** has its own sidebar workspace. SGL discovers the latest published Splitgate-Architects/Splitgate-Mods release at startup and caches it for offline use. Choose the game installation (automatically detected when a single Steam copy is found), close Splitgate, select a mod and click **Install & enable**. New mods are listed without enabling them. Edit BotChatter's JSON settings/names/phrases or MapEditorBudgetMod's budget in Configuration. Updates preserve configuration files and disabled state. Existing unmanaged UE4SS installations require manual migration; unrelated `version.dll` files are retained. SGL itself stays in its own folder.
 
 ## Maps
 
@@ -69,7 +72,7 @@ Install the .NET 10 SDK on Windows, then run:
 ```powershell
 dotnet build src/SGL.Desktop/SGL.Desktop.csproj
 dotnet run --project tests/SGL.Tests
-./scripts/package.ps1 -Version 0.4.0
+./scripts/package.ps1 -Version 0.5.0
 ```
 
 The test executable uses temporary game-save folders and a mock game-running probe. Never point a test host at real player saves. Development UI arguments `--cloud-save <folder> --data <folder> --no-update` isolate desktop checks. Production builds retain the real process guard.
