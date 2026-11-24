@@ -207,7 +207,7 @@
     "name": "Team Deathmatch",
     "variant": "PortalWarsGameVariant:GV_Deathmatch_Team_1round_Default",
     "resource": "tdm.json",
-    "sha256": "6e05729cee8e7abe5627ac964ff75f3bd736048d5a6298553ccc7455881fe771"
+    "sha256": "3ef5b434949a5f963f980af54dc65552b04419f6e8bb0311e4f5c0a21be21f9c"
   },
   {
     "id": "tdm-1v1",
