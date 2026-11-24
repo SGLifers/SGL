@@ -35,6 +35,7 @@ static class HostingDesktopChecks
         string temp = Path.Combine(Path.GetTempPath(), "SGL-hosting-ui-" + Guid.NewGuid().ToString("N")), data = Path.Combine(temp, "Data"), cloud = Path.Combine(temp, "CloudSave");
         Directory.CreateDirectory(cloud); File.WriteAllText(Path.Combine(cloud, "CloudSaveManifest.json"), "{\"Files\":[]}");
         var w = new MainWindow(["--data", data, "--cloud-save", cloud, "--no-update", "--no-mod-refresh"]);
+        Set(w, "hostingEndpointOverride", "");
         Check(Control<TabControl>(w, "Tabs").Items.Count == 5, "Hosting tab missing");
         Set(w, "changingContentView", true); Control<TabControl>(w, "ModeViews").SelectedIndex = 1; Set(w, "changingContentView", false); Control<TabItem>(w, "HostingTab").IsSelected = true;
         Check(!Get<bool>(w, "RemoteViewSelected"), "Hosting entered the mode community view");
