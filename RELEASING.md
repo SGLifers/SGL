@@ -2,6 +2,7 @@
 
 1. Use the latest servicing .NET 10 SDK. Update/rebuild self-contained releases for runtime security fixes.
 2. Run core and desktop checks. Verify backups, stale saves, single-file Git operation and an update between two fixture builds.
+   Run `dotnet run --project tests/SGL.Desktop.HostingChecks -c Release` for isolated Hosting/spinner/announcement checks. Keep `hosting-service.json` empty until the separately deployed bot is configured and a real-channel pilot is authorized. Connecting an endpoint must never embed a bot token or AWS credential.
    Run `dotnet run --project tests/SGL.Desktop.ModChecks -c Release` for isolated Mods UI checks and `dotnet run --project tests/SGL.ModRuntimeSmoke -c Release` to verify the pinned runtime, patch output and real mod archives in a non-executable temporary fixture. No game DLL is loaded. Complete a P2P host pilot before a stable Mods release.
    For sharing changes, also run the Python service tests and CloudFormation lint in `sharing/README.md`. Before a stable online-sharing release, deploy to the intended account, embed its endpoint, and complete the live Discord/two-machine pilot. Keep undeployed service previews in draft releases.
 3. Tag `vMAJOR.MINOR.PATCH`, or run the Release workflow with that numeric version. Prerelease version suffixes are not supported by the current updater.

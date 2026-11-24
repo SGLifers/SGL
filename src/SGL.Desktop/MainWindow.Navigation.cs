@@ -35,7 +35,7 @@ public partial class MainWindow
     async void ContentViewChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!navigationReady || changingContentView || (e.Source != Tabs && e.Source != ModeViews && e.Source != MapViews)) return;
-        if (SettingsTab.IsSelected || ModsTab.IsSelected) return;
+        if (SettingsTab.IsSelected || ModsTab.IsSelected || HostingTab.IsSelected) return;
         var views = MapsTab.IsSelected ? MapViews : ModeViews;
         if (views.SelectedIndex == 0) { if (MapsTab.IsSelected) { UpdateInstalledMapDetails(); } return; }
         ActivateLibraryContext(MapsTab.IsSelected ? "map" : "mode", views.SelectedIndex == 2 ? "mine" : "community");

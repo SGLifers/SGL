@@ -38,7 +38,7 @@ static class DesktopChecks
         Dispatcher.PushFrame(frame);
         task.GetAwaiter().GetResult();
         app.Shutdown();
-        Console.WriteLine("Passed Mods desktop checks: four sections, discovery, offline fallback, future mods, search, configuration editing, toggles, updates, runtime status, navigation isolation and narrow layout. Temporary files and fake HTTP only.");
+        Console.WriteLine("Passed Mods desktop checks: five sections, discovery, offline fallback, future mods, search, configuration editing, toggles, updates, runtime status, navigation isolation and narrow layout. Temporary files and fake HTTP only.");
     }
     static async Task Run()
     {
@@ -64,7 +64,7 @@ static class DesktopChecks
         var window = new MainWindow(["--data", data, "--cloud-save", cloud, "--no-update", "--no-mod-refresh"]);
         Set(window, "modGameRunning", (Func<bool>)(() => false)); Call(window, "SetModGame", game);
         var tabs = Named<TabControl>(window, "Tabs");
-        Check(tabs.Items.Count == 4, "Mods section missing or unexpected extra tabs");
+        Check(tabs.Items.Count == 5, "Mods/Hosting section missing or unexpected extra tabs");
         // Enter Mods while the mode library has Community selected; no sharing context should move.
         Set(window, "changingContentView", true); Named<TabControl>(window, "ModeViews").SelectedIndex = 1; Set(window, "changingContentView", false);
         string browseBefore = Get<string>(window, "browseKind");

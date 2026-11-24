@@ -24,6 +24,8 @@ jobs:
         run: dotnet run --project tests/SGL.Tests -c Release
       - name: Test Mods desktop in isolated folders
         run: dotnet run --project tests/SGL.Desktop.ModChecks -c Release
+      - name: Test Hosting without real Discord messages
+        run: dotnet run --project tests/SGL.Desktop.HostingChecks -c Release
       - name: Verify pinned UE4SS patch in isolated staging
         run: dotnet run --project tests/SGL.ModRuntimeSmoke -c Release
       - name: Package unsigned verification build

@@ -34,6 +34,7 @@ public partial class MainWindow : Window
         InitializeSharing();
         InitializeContentNavigation();
         InitializeMods();
+        InitializeHosting();
         SizeChanged += (s, e) => ApplyPaneWidths();
         ModePanes.SizeChanged += (s, e) => ApplyPaneWidths();
         SettingsPanes.SizeChanged += (s, e) => ApplyPaneWidths();
@@ -529,7 +530,7 @@ public partial class MainWindow : Window
                 return;
             }
             Status.Text = "Verified update " + update.Value.Release.Version + " downloaded.";
-            if (dirty || invalid.Count > 0 || libraryBusy || modsBusy || modConfigDirty)
+            if (dirty || invalid.Count > 0 || libraryBusy || modsBusy || modConfigDirty || hostingAnnouncementRequest != null)
             {
                 Status.Text += " Save your changes and restart SGL to apply it.";
                 return;

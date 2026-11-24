@@ -70,6 +70,7 @@ public partial class MainWindow
         LibraryAccount.Text = user == null ? "Not signed in" : "Signed in as " + (string?)user["displayName"];
         LibrarySignInButton.Visibility = user == null ? Visibility.Visible : Visibility.Collapsed;
         LibrarySignOutButton.Visibility = user == null ? Visibility.Collapsed : Visibility.Visible;
+        RefreshHostingAccount();
         if (string.IsNullOrWhiteSpace(LibraryRoot))
             LibraryStatus.Text = "Sharing service not configured yet. You can export and install portable packages offline.";
     }
@@ -102,7 +103,8 @@ public partial class MainWindow
         catch (Exception error) { LibraryStatus.Text = error.Message; Report(error); }
         finally { libraryRequest = null; libraryBusy = false; LibraryItems.IsEnabled = true; UpdateNavigationBusy(); UpdateLibrarySelectionState(); LibraryTag.IsEnabled = LibraryCreator.IsEnabled = ApplyLibraryFiltersButton.IsEnabled = ClearLibraryFiltersButton.IsEnabled = true; }
     }
-    async void LibrarySignIn(object sender, RoutedEventArgs e) {
+    async void LibrarySignIn(object sender, RoutedEventArgs e) => await SignInDiscord();
+    async Task SignInDiscord() {
         await LibraryWork(async cancel =>
         {
             using var client = SharingClient();
