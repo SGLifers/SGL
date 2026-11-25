@@ -10,25 +10,21 @@ Select a preset and choose **Spin**. Only gamemodes with assigned maps participa
 
 Expand **Configure rotation** to copy/delete presets, restore a built-in preset, edit gamemodes and map lists, and link each mode to one or more lists. Unlinked modes do not participate. You can add installed gamemode names or use installed map names as a list; assign compatible links explicitly. Saved changes reset rotation history. Settings persist in `%LOCALAPPDATA%/SGL/Hosting/rotations.json`, with the previous file kept as `rotations.json.previous`. Browser-saved SpinGate presets are not imported automatically.
 
-## Optional gamemode
+## Gamemode and Map
 
-**Gamemode** has three choices and starts on **Unset**:
+**Gamemode** and **Map** appear side by side. Each independently starts on **Unset** and has the same three options:
 
-- **Unset** omits the Gamemode line from the Discord embed.
-- **SpinGate** includes the most recent spinner result. After Open Lobby, each successful **Spin** updates the existing announcement. Spinning before opening or after closing only changes the local spinner.
-- **Custom** shows a text field for a single-line gamemode name, up to 120 characters.
+- **Unset** omits that line from the Discord embed.
+- **SpinGate** uses that field from the most recent spinner result. After Open Lobby, **Spin** updates fields set to SpinGate on the existing announcement.
+- **Custom** shows a text input, up to 120 characters. A spin preserves this value.
 
-For an open lobby, use **Update details** to apply Custom text, remove the line with Unset, or retry a failed SpinGate update. Typing and changing the selector do not publish. The lobby's name and code remain locked until it closes. Signing in as another account resets the selector to Unset and clears custom text. Updates retain the same announcement and do not consume the daily new-lobby allowance.
-
-## Map
-
-The **Map** field accepts a name up to 120 characters. Spin fills it from the selected map and updates an open Discord card, independently of the gamemode source. For a manually chosen map, enter its name and choose **Update details**. A blank map is omitted. Signing in as another account clears it. The embed separates Name, Code, Host, Gamemode (when set), and Map (when set) with blank lines.
+Use **Update details** to apply a Custom edit, remove a line with Unset, or retry an update. Typing and changing the selectors do not publish. If neither field uses SpinGate, spinning stays local. Spinning before opening or after closing also stays local. The lobby's name and code remain locked until it closes. Signing in as another account resets both selectors to Unset and clears both text inputs. Updates retain the same announcement and do not consume the daily new-lobby allowance. Discord details use consecutive lines without blank lines.
 
 ## Lobby announcements
 
 SGL connects to the deployed [SGL Discord Bot](https://github.com/SGLifers/SGL-Discord-Bot). Hosts sign in with Discord and must have the configured host role. Announcements currently target the configured test server and channel. No bot token or AWS credential is stored in the desktop application.
 
-After connection, sign in with Discord, optionally enter a lobby name, then enter or paste your six-character lobby code. Choose **Open Lobby** to post the announcement to Discord. Typing and changing tabs never send a message. Spin updates an existing open announcement’s map, and its gamemode when SpinGate is selected. The code accepts letters or digits and is normalized to uppercase. Names are limited to 80 characters on one line. The bot verifies the SGL session, server membership and configured host role/allowlist before posting to the operator-selected channel.
+After connection, sign in with Discord, optionally enter a lobby name, then enter or paste your six-character lobby code. Choose **Open Lobby** to post the announcement to Discord. Typing and changing tabs never send a message. Spin updates an existing open announcement only for fields set to SpinGate. The code accepts letters or digits and is normalized to uppercase. Names are limited to 80 characters on one line. The bot verifies the SGL session, server membership and configured host role/allowlist before posting to the operator-selected channel.
 
 Choose **Close Lobby** when you finish hosting. The bot edits the original announcement to say the lobby is closed, preserving its name and code. It does not create a second Discord post. These buttons manage announcements; they do not create or close the lobby in Splitgate. Closing remains available during the new-announcement cooldown and does not consume the daily opening limit. The name and code are locked while the lobby is open. Map and gamemode remain editable through Update details. All fields are locked during a request. Close the lobby before changing its name/code or reopening it.
 

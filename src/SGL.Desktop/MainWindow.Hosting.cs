@@ -20,13 +20,15 @@ public partial class MainWindow
     string hostingOpenCode = "";
     string? hostingAnnouncementId;
     string HostingGamemodeSourceValue => (string?)((ComboBoxItem?)HostingGamemodeSource.SelectedItem)?.Tag ?? "unset";
+    string HostingMapSourceValue => (string?)((ComboBoxItem?)HostingMapSource.SelectedItem)?.Tag ?? "unset";
+    string HostingMap => HostingAnnouncements.MapName(HostingMapSourceValue == "custom" ? HostingLobbyMap.Text : HostingMapSourceValue == "spingate" ? hostingResult?.Map ?? "" : "");
     string HostingGamemode => HostingAnnouncements.Gamemode(HostingGamemodeSourceValue == "custom" ? HostingCustomGamemode.Text : HostingGamemodeSourceValue == "spingate" ? hostingResult?.Gamemode ?? "" : "");
     void HostingGamemodeChanged(object sender, RoutedEventArgs e)
     {
         if (!hostingReady || renderingHosting) return;
         hostingGeneration++; hostingAnnouncementRequest?.Cancel();
         RefreshHostingLobbyButtons();
-        if (hostingOpenCode.Length > 0) HostingAnnouncementStatus.Text = HostingGamemodeSourceValue == "spingate" ? "Spin to update the open lobby’s gamemode, or choose Update details." : "Choose Update details to apply this selection to the open lobby.";
+        if (hostingOpenCode.Length > 0) HostingAnnouncementStatus.Text = HostingGamemodeSourceValue == "spingate" || HostingMapSourceValue == "spingate" ? "Spin updates fields set to SpinGate, or choose Update details." : "Choose Update details to apply this selection to the open lobby.";
     }
     bool hostingLobbyBusy;
     int hostingGeneration;
@@ -66,7 +68,7 @@ public partial class MainWindow
             hostingGeneration++; hostingAnnouncementRequest?.Cancel(); hostingAnnouncementRequest = null; hostingLobbyBusy = false;
             HostingLobbyCode.Clear();
             HostingLobbyName.Clear();
-            HostingGamemodeSource.SelectedIndex = 0; HostingCustomGamemode.Clear(); HostingLobbyMap.Clear();
+            HostingGamemodeSource.SelectedIndex = HostingMapSource.SelectedIndex = 0; HostingCustomGamemode.Clear(); HostingLobbyMap.Clear();
         }
         HostingAccount.Text = actor == null ? "Not signed in" : "Signed in as " + (string?)session?["user"]?["displayName"];
         HostingSignInButton.Visibility = actor == null ? Visibility.Visible : Visibility.Collapsed;
@@ -93,15 +95,16 @@ public partial class MainWindow
     void RefreshHostingLobbyButtons()
     {
         bool valid = false;
-        try { HostingAnnouncements.Code(HostingLobbyCode.Text); HostingAnnouncements.LobbyName(HostingLobbyName.Text); _ = HostingGamemode; _ = HostingAnnouncements.MapName(HostingLobbyMap.Text); valid = true; } catch { }
+        try { HostingAnnouncements.Code(HostingLobbyCode.Text); HostingAnnouncements.LobbyName(HostingLobbyName.Text); _ = HostingGamemode; _ = HostingMap; valid = true; } catch { }
         bool available = valid && hostingActor != null && !string.IsNullOrWhiteSpace(HostingEndpoint) && !hostingLobbyBusy;
         HostingOpenLobbyButton.IsEnabled = available && hostingOpenCode == "";
         HostingCloseLobbyButton.IsEnabled = available;
         HostingUpdateGamemodeButton.Visibility = hostingOpenCode.Length > 0 && hostingAnnouncementId != null ? Visibility.Visible : Visibility.Collapsed;
         HostingUpdateGamemodeButton.IsEnabled = available && hostingOpenCode.Length > 0 && hostingAnnouncementId != null;
-        HostingGamemodeSource.IsEnabled = !hostingLobbyBusy;
+        HostingGamemodeSource.IsEnabled = HostingMapSource.IsEnabled = !hostingLobbyBusy;
         HostingCustomGamemode.IsReadOnly = HostingLobbyMap.IsReadOnly = hostingLobbyBusy;
         HostingCustomGamemodePanel.Visibility = HostingGamemodeSourceValue == "custom" ? Visibility.Visible : Visibility.Collapsed;
+        HostingCustomMapPanel.Visibility = HostingMapSourceValue == "custom" ? Visibility.Visible : Visibility.Collapsed;
         HostingSpinButton.IsEnabled = !hostingLobbyBusy;
         HostingLobbyCode.IsReadOnly = HostingLobbyName.IsReadOnly = hostingLobbyBusy || hostingOpenCode != "";
     }
@@ -113,7 +116,7 @@ public partial class MainWindow
         if (hostingLobbyBusy || action == "open" && hostingOpenCode != "" || action == "update" && (hostingOpenCode == "" || hostingAnnouncementId == null)) return;
         int generation = hostingGeneration;
         string code, lobbyName, gamemode, map;
-        try { code = HostingAnnouncements.Code(HostingLobbyCode.Text); lobbyName = HostingAnnouncements.LobbyName(HostingLobbyName.Text); gamemode = action == "close" ? "" : HostingGamemode; map = action == "close" ? "" : HostingAnnouncements.MapName(HostingLobbyMap.Text); } catch { return; }
+        try { code = HostingAnnouncements.Code(HostingLobbyCode.Text); lobbyName = HostingAnnouncements.LobbyName(HostingLobbyName.Text); gamemode = action == "close" ? "" : HostingGamemode; map = action == "close" ? "" : HostingMap; } catch { return; }
         var session = Session(LibraryRoot).Load();
         string? actor = (string?)session?["user"]?["id"], token = (string?)session?["token"];
         string endpoint = HostingEndpoint;
@@ -209,8 +212,8 @@ public partial class MainWindow
     async Task SpinHosting()
     {
         if (hostingLobbyBusy) return;
-        try { hostingResult = hostingSpinner.Spin(CurrentHostingRotation); renderingHosting = true; HostingLobbyMap.Text = hostingResult.Map; renderingHosting = false; HostingSpinMode.Text = hostingResult.Gamemode; HostingSpinMap.Text = hostingResult.Map; CopyHostingModeButton.IsEnabled = CopyHostingMapButton.IsEnabled = true; HostingSpinStatus.Text = "Using " + string.Join(" + ", CurrentHostingRotation.Assignments[hostingResult.Gamemode]) + ". Spin again for another matchup.";
-            if (hostingOpenCode.Length > 0 && hostingAnnouncementId != null) await SendHostingAnnouncement("update");
+        try { hostingResult = hostingSpinner.Spin(CurrentHostingRotation); HostingSpinMode.Text = hostingResult.Gamemode; HostingSpinMap.Text = hostingResult.Map; CopyHostingModeButton.IsEnabled = CopyHostingMapButton.IsEnabled = true; HostingSpinStatus.Text = "Using " + string.Join(" + ", CurrentHostingRotation.Assignments[hostingResult.Gamemode]) + ". Spin again for another matchup.";
+            if ((HostingGamemodeSourceValue == "spingate" || HostingMapSourceValue == "spingate") && hostingOpenCode.Length > 0 && hostingAnnouncementId != null) await SendHostingAnnouncement("update");
         }
         catch (Exception error) { HostingSpinStatus.Text = error.Message; }
     }

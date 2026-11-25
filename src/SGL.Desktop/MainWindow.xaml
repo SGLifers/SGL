@@ -22,11 +22,18 @@
                             <StackPanel Grid.Column="2"><TextBlock Text="Lobby code" Margin="0,0,0,5"/><TextBox x:Name="HostingLobbyCode" Width="160" MaxLength="6" Height="44" CharacterCasing="Upper" TextChanged="HostingCodeChanged" FontSize="22" FontFamily="Consolas" HorizontalContentAlignment="Center" AutomationProperties.Name="Lobby code" ToolTip="Six letters or numbers"/></StackPanel>
                         </Grid>
                         <Grid Margin="0,12,0,0">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                            <StackPanel><TextBlock Text="Gamemode" Margin="0,0,0,5"/><ComboBox x:Name="HostingGamemodeSource" SelectedIndex="0" SelectionChanged="HostingGamemodeChanged" AutomationProperties.Name="Gamemode source"><ComboBoxItem Content="Unset" Tag="unset"/><ComboBoxItem Content="SpinGate" Tag="spingate"/><ComboBoxItem Content="Custom" Tag="custom"/></ComboBox></StackPanel>
-                            <StackPanel Grid.Column="2" x:Name="HostingCustomGamemodePanel" Visibility="Collapsed"><TextBlock Text="Custom gamemode" Margin="0,0,0,5"/><TextBox x:Name="HostingCustomGamemode" MaxLength="120" TextChanged="HostingGamemodeChanged" AutomationProperties.Name="Custom gamemode"/></StackPanel>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Gamemode" Margin="0,0,0,5"/>
+                                <ComboBox x:Name="HostingGamemodeSource" SelectedIndex="0" SelectionChanged="HostingGamemodeChanged" AutomationProperties.Name="Gamemode source"><ComboBoxItem Content="Unset" Tag="unset"/><ComboBoxItem Content="SpinGate" Tag="spingate"/><ComboBoxItem Content="Custom" Tag="custom"/></ComboBox>
+                                <StackPanel x:Name="HostingCustomGamemodePanel" Visibility="Collapsed" Margin="0,8,0,0"><TextBox x:Name="HostingCustomGamemode" MaxLength="120" TextChanged="HostingGamemodeChanged" AutomationProperties.Name="Gamemode"/></StackPanel>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Map" Margin="0,0,0,5"/>
+                                <ComboBox x:Name="HostingMapSource" SelectedIndex="0" SelectionChanged="HostingGamemodeChanged" AutomationProperties.Name="Map source"><ComboBoxItem Content="Unset" Tag="unset"/><ComboBoxItem Content="SpinGate" Tag="spingate"/><ComboBoxItem Content="Custom" Tag="custom"/></ComboBox>
+                                <StackPanel x:Name="HostingCustomMapPanel" Visibility="Collapsed" Margin="0,8,0,0"><TextBox x:Name="HostingLobbyMap" MaxLength="120" TextChanged="HostingGamemodeChanged" AutomationProperties.Name="Map"/></StackPanel>
+                            </StackPanel>
                         </Grid>
-                        <StackPanel Margin="0,12,0,0"><TextBlock Text="Map" Margin="0,0,0,5"/><TextBox x:Name="HostingLobbyMap" MaxLength="120" TextChanged="HostingGamemodeChanged" AutomationProperties.Name="Lobby map" ToolTip="Filled by SpinGate; you can also enter a map name"/></StackPanel>
                         <WrapPanel Margin="0,12,0,0">
                             <Button x:Name="HostingOpenLobbyButton" Content="Open Lobby" Click="HostingOpenLobby" IsEnabled="False" Background="{StaticResource Gold}" Foreground="#171027" MinWidth="130" Margin="0,0,10,0"/>
                             <Button x:Name="HostingCloseLobbyButton" Content="Close Lobby" Click="HostingCloseLobby" IsEnabled="False" MinWidth="130"/>

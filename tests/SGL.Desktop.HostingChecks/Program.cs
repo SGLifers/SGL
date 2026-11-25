@@ -58,6 +58,9 @@ static class HostingDesktopChecks
         Check((string)presets.SelectedItem == "Friday event" && Control<TextBox>(w, "HostingModesInput").Text == "", "Invalid edit lost selection or input");
         var modeSource = Control<ComboBox>(w, "HostingGamemodeSource");
         var customMode = Control<TextBox>(w, "HostingCustomGamemode");
+        var mapSource = Control<ComboBox>(w, "HostingMapSource");
+        var mapInput = Control<TextBox>(w, "HostingLobbyMap");
+        Check(mapSource.Items.Count == 3 && mapSource.SelectedIndex == 0 && Control<StackPanel>(w, "HostingCustomMapPanel").Visibility == Visibility.Collapsed, "Map must have the same three choices and default to Unset");
         Check(modeSource.Items.Count == 3 && modeSource.SelectedIndex == 0 && Control<StackPanel>(w, "HostingCustomGamemodePanel").Visibility == Visibility.Collapsed, "Gamemode source must default to Unset");
         var code = Control<TextBox>(w, "HostingLobbyCode");
         var lobbyName = Control<TextBox>(w, "HostingLobbyName");
@@ -80,8 +83,10 @@ static class HostingDesktopChecks
         Check(http.Calls.Count == 0 && open.IsEnabled && close.IsEnabled, "Typing announced a lobby or failed to enable buttons");
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
         Check(http.Calls.Count == 1 && (string?)http.Calls[0]["code"] == "ABC123" && (string?)http.Calls[0]["action"] == "open", "Open Lobby did not send the chosen code");
-        Check((string?)http.Calls[0]["lobbyName"] == "Friday games" && http.Calls[0]["gamemode"] == null, "Unset must omit the gamemode");
+        Check((string?)http.Calls[0]["lobbyName"] == "Friday games" && http.Calls[0]["gamemode"] == null && http.Calls[0]["map"] == null, "Unset must omit gamemode and map");
         Check(!open.IsEnabled && close.IsEnabled && code.IsReadOnly && lobbyName.IsReadOnly, "Open lobby did not lock its details");
+        await (Task)Call(w, "SpinHosting")!;
+        Check(http.Calls.Count == 1, "Spin published while both fields were Unset");
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
         Check(http.Calls.Count == 1, "Repeated Open Lobby created another request");
         await (Task)Call(w, "SendHostingAnnouncement", "close")!;
@@ -105,7 +110,7 @@ static class HostingDesktopChecks
         Check(Control<StackPanel>(w, "HostingCustomGamemodePanel").Visibility == Visibility.Visible, "Custom text input missing");
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
         Check((string?)http.Calls[^1]["gamemode"] == "Custom SWAT", "Custom gamemode omitted from open");
-        int beforeTyping = http.Calls.Count; customMode.Text = "Custom KOTH"; Control<TextBox>(w, "HostingLobbyMap").Text = "Manual map";
+        int beforeTyping = http.Calls.Count; customMode.Text = "Custom KOTH"; mapSource.SelectedIndex = 2; mapInput.Text = "Manual map";
         Check(http.Calls.Count == beforeTyping && Control<Button>(w, "HostingUpdateGamemodeButton").IsEnabled, "Custom typing sent automatically or disabled update");
         await (Task)Call(w, "SendHostingAnnouncement", "update")!;
         Check((string?)http.Calls[^1]["gamemode"] == "Custom KOTH" && http.Calls[^1]["announcementId"] != null, "Custom edit failed to target original announcement");
@@ -115,11 +120,15 @@ static class HostingDesktopChecks
         await (Task)Call(w, "SendHostingAnnouncement", "update")!;
         Check((string?)http.Calls[^1]["requestId"] == updateRetryId, "Gamemode retry changed its identity");
         int beforeSpin = http.Calls.Count; await (Task)Call(w, "SpinHosting")!;
-        Check(http.Calls.Count == beforeSpin + 1 && (string?)http.Calls[^1]["gamemode"] == "Retry mode" && (string?)http.Calls[^1]["map"] == Get<HostingSpin>(w, "hostingResult").Map, "Spin must update the map while preserving Custom gamemode");
+        Check(http.Calls.Count == beforeSpin && mapInput.Text == "Manual map", "Spin changed a Custom field or sent when both fields were Custom");
+        mapSource.SelectedIndex = 1; await (Task)Call(w, "SpinHosting")!;
+        Check((string?)http.Calls[^1]["gamemode"] == "Retry mode" && (string?)http.Calls[^1]["map"] == Get<HostingSpin>(w, "hostingResult").Map, "Map SpinGate source must update map while retaining Custom gamemode");
         modeSource.SelectedIndex = 0; await (Task)Call(w, "SendHostingAnnouncement", "update")!;
         Check((string?)http.Calls[^1]["gamemode"] == "", "Unset update did not remove gamemode");
-        modeSource.SelectedIndex = 1; await (Task)Call(w, "SpinHosting")!;
+        mapSource.SelectedIndex = 0; modeSource.SelectedIndex = 1; await (Task)Call(w, "SpinHosting")!;
         Check((string?)http.Calls[^1]["action"] == "update" && (string?)http.Calls[^1]["gamemode"] == Get<HostingSpin>(w, "hostingResult").Gamemode, "SpinGate did not update the same card");
+        Check((string?)http.Calls[^1]["map"] == "", "Unset map must be removed when gamemode updates");
+        mapSource.SelectedIndex = 1;
         http.Hold = new TaskCompletionSource<HttpResponseMessage>();
         var spinning = (Task)Call(w, "SpinHosting")!; await Task.Delay(20); int updatingCount = http.Calls.Count;
         await (Task)Call(w, "SpinHosting")!;
@@ -129,7 +138,7 @@ static class HostingDesktopChecks
         int afterClose = http.Calls.Count; await (Task)Call(w, "SpinHosting")!;
         Check(http.Calls.Count == afterClose, "Spin reopened a closed lobby");
         Session(new string('g', 32));
-        Check(modeSource.SelectedIndex == 0 && customMode.Text == "" && Control<TextBox>(w, "HostingLobbyMap").Text == "", "Account change retained old lobby details");
+        Check(modeSource.SelectedIndex == 0 && mapSource.SelectedIndex == 0 && customMode.Text == "" && mapInput.Text == "", "Account change retained old lobby details");
         http.Hold = new TaskCompletionSource<HttpResponseMessage>(); code.Text = "SLOW12";
         var pending = (Task)Call(w, "SendHostingAnnouncement", "open")!; await Task.Delay(20);
         Check(!open.IsEnabled && !close.IsEnabled && code.IsReadOnly, "In-flight lobby request left controls enabled");
@@ -143,6 +152,7 @@ static class HostingDesktopChecks
         Check(code.Text == "" && !open.IsEnabled && !close.IsEnabled && !code.IsReadOnly, "Late response crossed a session change");
         lobbyName.Text = "Friday games"; code.Text = "ABC123";
         Check(Control<Button>(w, "HostingSignInButton").Visibility == Visibility.Collapsed, "Sign-in button remained visible for a signed-in host");
+        modeSource.SelectedIndex = mapSource.SelectedIndex = 2; customMode.Text = "Friday SWAT"; mapInput.Text = "Stadium";
         Call(w, "RenderHostingRotation");
         var rootElement = (FrameworkElement)w.Content; w.Content = null;
         var render = new Border { Child = rootElement, Background = (Brush)new BrushConverter().ConvertFromString("#10152B")! }; System.Windows.Documents.TextElement.SetForeground(render, Brushes.White); System.Windows.Documents.TextElement.SetFontFamily(render, new FontFamily("Segoe UI")); System.Windows.Documents.TextElement.SetFontSize(render, 14);
@@ -150,6 +160,7 @@ static class HostingDesktopChecks
         var bitmap = new RenderTargetBitmap(1350, 900, 96, 96, PixelFormats.Pbgra32); bitmap.Render(render); var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); Directory.CreateDirectory("artifacts"); using (var file = File.Create("artifacts/sgl-hosting.png")) png.Save(file);
         render.Measure(new Size(1000, 700)); render.Arrange(new Rect(0, 0, 1000, 700)); render.UpdateLayout();
         Check(code.ActualWidth == 160 && lobbyName.ActualWidth > 350 && lobbyName.ActualWidth + code.ActualWidth < 850, "Lobby inputs exceed narrow workspace or the code box stretches");
+        Check(Math.Abs(customMode.TranslatePoint(new Point(0, 0), render).Y - mapInput.TranslatePoint(new Point(0, 0), render).Y) < 1 && customMode.ActualWidth > 200 && mapInput.ActualWidth > 200, "Gamemode and Map inputs must share a row at narrow width");
         render.Child = null; w.Content = rootElement; w.Close();
     }
     sealed class FakeHosting : HttpMessageHandler
