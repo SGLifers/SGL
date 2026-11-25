@@ -63,6 +63,7 @@ public partial class MainWindow
         var folders = GameInstallation.Find();
         if (folders.Length == 1) { SetModGame(folders[0]); ModsStatus.Text = "Found Splitgate in Steam."; }
         else ModsStatus.Text = folders.Length == 0 ? "No Steam installation found. Browse to your Splitgate game folder." : "Multiple Splitgate installations found. Use Browse to choose the one you host with.";
+        Status.Text = ModsStatus.Text;
     });
     async Task DiscoverMods()
     {

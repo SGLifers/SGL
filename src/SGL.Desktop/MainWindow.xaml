@@ -26,10 +26,11 @@
                             <StackPanel><TextBlock Text="Gamemode" Margin="0,0,0,5"/><ComboBox x:Name="HostingGamemodeSource" SelectedIndex="0" SelectionChanged="HostingGamemodeChanged" AutomationProperties.Name="Gamemode source"><ComboBoxItem Content="Unset" Tag="unset"/><ComboBoxItem Content="SpinGate" Tag="spingate"/><ComboBoxItem Content="Custom" Tag="custom"/></ComboBox></StackPanel>
                             <StackPanel Grid.Column="2" x:Name="HostingCustomGamemodePanel" Visibility="Collapsed"><TextBlock Text="Custom gamemode" Margin="0,0,0,5"/><TextBox x:Name="HostingCustomGamemode" MaxLength="120" TextChanged="HostingGamemodeChanged" AutomationProperties.Name="Custom gamemode"/></StackPanel>
                         </Grid>
+                        <StackPanel Margin="0,12,0,0"><TextBlock Text="Map" Margin="0,0,0,5"/><TextBox x:Name="HostingLobbyMap" MaxLength="120" TextChanged="HostingGamemodeChanged" AutomationProperties.Name="Lobby map" ToolTip="Filled by SpinGate; you can also enter a map name"/></StackPanel>
                         <WrapPanel Margin="0,12,0,0">
                             <Button x:Name="HostingOpenLobbyButton" Content="Open Lobby" Click="HostingOpenLobby" IsEnabled="False" Background="{StaticResource Gold}" Foreground="#171027" MinWidth="130" Margin="0,0,10,0"/>
                             <Button x:Name="HostingCloseLobbyButton" Content="Close Lobby" Click="HostingCloseLobby" IsEnabled="False" MinWidth="130"/>
-                            <Button x:Name="HostingUpdateGamemodeButton" Content="Update gamemode" Click="HostingUpdateGamemode" Visibility="Collapsed" IsEnabled="False"/>
+                            <Button x:Name="HostingUpdateGamemodeButton" Content="Update details" Click="HostingUpdateGamemode" Visibility="Collapsed" IsEnabled="False"/>
                         </WrapPanel>
                         <TextBlock Text="Open Lobby posts to Discord. Close Lobby marks that announcement closed. These buttons do not control the lobby in-game." Foreground="#B9B7D6" TextWrapping="Wrap" Margin="0,6,0,0"/>
                         <TextBlock x:Name="HostingAnnouncementStatus" TextWrapping="Wrap" Foreground="#F3BE4F" Margin="0,6,0,24"/>
@@ -65,7 +66,10 @@
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="Gamemodes" x:Name="ModesTab">
-                <TabControl Margin="0" SelectionChanged="ContentViewChanged" x:Name="ModeViews" Style="{StaticResource WorkspaceViews}">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <TextBlock Text="Close Splitgate to change gamemodes; changes apply on the next game launch." TextWrapping="Wrap" Foreground="#B9B7D6" Margin="16,8,0,8"/>
+                <TabControl Grid.Row="1" Margin="0" SelectionChanged="ContentViewChanged" x:Name="ModeViews" Style="{StaticResource WorkspaceViews}">
                     <TabItem Header="Installed">
                         <Grid x:Name="ModePanes" Margin="8" TextElement.FontWeight="Normal">
                             <Grid.ColumnDefinitions>
@@ -415,9 +419,13 @@
                         <ContentControl x:Name="ModeUploadsHost" />
                     </TabItem>
                 </TabControl>
+                </Grid>
             </TabItem>
             <TabItem x:Name="MapsTab" Header="Maps">
-                <TabControl Margin="0" SelectionChanged="ContentViewChanged" x:Name="MapViews" Style="{StaticResource WorkspaceViews}">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <TextBlock Text="Close Splitgate to change maps; changes apply on the next game launch." TextWrapping="Wrap" Foreground="#B9B7D6" Margin="16,8,0,8"/>
+                <TabControl Grid.Row="1" Margin="0" SelectionChanged="ContentViewChanged" x:Name="MapViews" Style="{StaticResource WorkspaceViews}">
                     <TabItem Header="Installed">
                         <Grid Margin="16">
                             <Grid.RowDefinitions>
@@ -509,20 +517,13 @@
                         <ContentControl x:Name="MapUploadsHost" />
                     </TabItem>
                 </TabControl>
+                </Grid>
             </TabItem>
             <TabItem x:Name="ModsTab" Header="Mods">
                 <Grid Margin="16,8,0,0">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <TextBlock Text="Mods" FontSize="24" Margin="0,0,0,12"/>
-                    <StackPanel Grid.Row="1">
-                        <TextBlock Text="Splitgate game folder" Foreground="#B9B7D6" Margin="0,0,0,4"/>
-                        <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseModGame" Margin="8,0,0,0"/>
-                            <Button DockPanel.Dock="Right" Content="Find in Steam" Click="FindModGame" Margin="8,0,0,0"/>
-                            <TextBox x:Name="ModGameFolder" IsReadOnly="True" ToolTip="Game installation, separate from the CloudSave folder"/>
-                        </DockPanel>
-                        <TextBlock Text="For the P2P build. Close Splitgate to change mods; changes apply on the next game launch." TextWrapping="Wrap" Foreground="#B9B7D6" Margin="0,8,0,12"/>
-                    </StackPanel>
+                    <TextBlock Grid.Row="1" Text="Close Splitgate to change mods; changes apply on the next game launch." TextWrapping="Wrap" Foreground="#B9B7D6" Margin="0,0,0,12"/>
                     <Grid Grid.Row="2" x:Name="ModsWorkspace">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="300" MinWidth="240"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                         <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -571,6 +572,12 @@
                             <Button Content="Open SGL data folder" Click="OpenData" />
                             <Button Content="Reset pane widths" Click="ResetPaneWidths" />
                         </WrapPanel>
+                        <TextBlock Text="Splitgate game folder" Foreground="#B9B7D6" Margin="0,12,0,4"/>
+                        <DockPanel x:Name="GameFolderControls" Margin="0,0,0,12">
+                            <Button DockPanel.Dock="Right" Content="Browse" Click="BrowseModGame" Margin="8,0,0,0"/>
+                            <Button DockPanel.Dock="Right" Content="Find in Steam" Click="FindModGame" Margin="8,0,0,0"/>
+                            <TextBox x:Name="ModGameFolder" IsReadOnly="True" ToolTip="Game installation, separate from the CloudSave folder"/>
+                        </DockPanel>
                         <TextBlock Text="CloudSave folder" FontSize="18" Margin="0,12,0,0" />
                         <Grid Margin="0,8,0,20">
                             <Grid.ColumnDefinitions>

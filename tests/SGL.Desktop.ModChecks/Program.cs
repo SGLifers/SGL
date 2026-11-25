@@ -66,6 +66,13 @@ static class DesktopChecks
         var tabs = Named<TabControl>(window, "Tabs");
         Check(tabs.Items.Count == 5, "Mods/Hosting section missing or unexpected extra tabs");
         // Enter Mods while the mode library has Community selected; no sharing context should move.
+        var xaml = System.Xml.Linq.XDocument.Load("src/SGL.Desktop/MainWindow.xaml");
+        var ns = System.Xml.Linq.XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
+        var settings = xaml.Descendants().Single(n => (string?)n.Attribute(ns + "Name") == "SettingsTab");
+        var mods = xaml.Descendants().Single(n => (string?)n.Attribute(ns + "Name") == "ModsTab");
+        Check(settings.Descendants().Any(n => (string?)n.Attribute(ns + "Name") == "ModGameFolder") && !mods.Descendants().Any(n => (string?)n.Attribute(ns + "Name") == "ModGameFolder"), "Game folder controls must live under Settings");
+        Check(!xaml.ToString().Contains("For the P2P build."), "Obsolete P2P notice remains");
+        foreach (string category in new[] { "maps", "gamemodes", "mods" }) Check(xaml.Descendants().Any(n => ((string?)n.Attribute("Text"))?.StartsWith("Close Splitgate to change " + category + ";") == true), "Missing game-closed notice for " + category);
         Set(window, "changingContentView", true); Named<TabControl>(window, "ModeViews").SelectedIndex = 1; Set(window, "changingContentView", false);
         string browseBefore = Get<string>(window, "browseKind");
         Named<TabItem>(window, "ModsTab").IsSelected = true;

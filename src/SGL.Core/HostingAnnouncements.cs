@@ -32,17 +32,22 @@ public static class HostingAnnouncements
             throw new InvalidDataException("Use a gamemode up to 120 characters on one line.");
         return mode;
     }
+    public static string MapName(string text)
+    {
+        try { return Gamemode(text); }
+        catch (InvalidDataException) { throw new InvalidDataException("Use a map name up to 120 characters on one line."); }
+    }
     public static Uri Endpoint(string url)
     {
         if (!Uri.TryCreate(url.TrimEnd('/') + "/", UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.UserInfo != "" || uri.Query != "" || uri.Fragment != "" || !uri.IsDefaultPort) throw new InvalidDataException("The hosting service must use HTTPS without credentials, query parameters or a custom port.");
         return uri;
     }
-    public static async Task<JsonObject> Announce(string endpoint, string token, string code, string requestId, CancellationToken cancel = default, HttpMessageHandler? handler = null, string lobbyName = "", string action = "open", string gamemode = "", string? announcementId = null)
+    public static async Task<JsonObject> Announce(string endpoint, string token, string code, string requestId, CancellationToken cancel = default, HttpMessageHandler? handler = null, string lobbyName = "", string action = "open", string gamemode = "", string? announcementId = null, string map = "")
     {
         Uri root = Endpoint(endpoint);
         code = Code(code);
         lobbyName = LobbyName(lobbyName);
-        gamemode = Gamemode(gamemode);
+        gamemode = Gamemode(gamemode); map = MapName(map);
         if (action is not ("open" or "close" or "update")) throw new InvalidDataException("Choose Open Lobby or Close Lobby.");
         if (!Regex.IsMatch(requestId, @"\A[a-f0-9]{32}\z") || !Regex.IsMatch(token, @"\A[A-Za-z0-9_-]{32,512}\z")) throw new InvalidDataException("Invalid hosting session or request identity.");
         if (action == "update" && (announcementId == null || !Regex.IsMatch(announcementId, @"\A[a-f0-9]{32}\z"))) throw new InvalidDataException("Open the lobby before updating its gamemode.");
@@ -53,6 +58,7 @@ public static class HostingAnnouncements
         request.Headers.UserAgent.ParseAdd("SGL-Hosting/1.0");
         var payload = new JsonObject { ["code"] = code, ["requestId"] = requestId, ["lobbyName"] = lobbyName, ["action"] = action };
         if (gamemode.Length > 0 || action == "update") payload["gamemode"] = gamemode;
+        if (map.Length > 0 || action == "update") payload["map"] = map;
         if (action == "update") payload["announcementId"] = announcementId;
         request.Content = new StringContent(payload.ToJsonString(), Encoding.UTF8, "application/json");
         using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel);

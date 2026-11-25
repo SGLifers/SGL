@@ -105,16 +105,17 @@ static class HostingDesktopChecks
         Check(Control<StackPanel>(w, "HostingCustomGamemodePanel").Visibility == Visibility.Visible, "Custom text input missing");
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
         Check((string?)http.Calls[^1]["gamemode"] == "Custom SWAT", "Custom gamemode omitted from open");
-        int beforeTyping = http.Calls.Count; customMode.Text = "Custom KOTH";
+        int beforeTyping = http.Calls.Count; customMode.Text = "Custom KOTH"; Control<TextBox>(w, "HostingLobbyMap").Text = "Manual map";
         Check(http.Calls.Count == beforeTyping && Control<Button>(w, "HostingUpdateGamemodeButton").IsEnabled, "Custom typing sent automatically or disabled update");
         await (Task)Call(w, "SendHostingAnnouncement", "update")!;
         Check((string?)http.Calls[^1]["gamemode"] == "Custom KOTH" && http.Calls[^1]["announcementId"] != null, "Custom edit failed to target original announcement");
+        Check((string?)http.Calls[^1]["map"] == "Manual map", "Manual map was omitted from details update");
         customMode.Text = "Retry mode"; http.FailOnce = HttpStatusCode.ServiceUnavailable;
         await (Task)Call(w, "SendHostingAnnouncement", "update")!; string? updateRetryId = (string?)http.Calls[^1]["requestId"];
         await (Task)Call(w, "SendHostingAnnouncement", "update")!;
         Check((string?)http.Calls[^1]["requestId"] == updateRetryId, "Gamemode retry changed its identity");
         int beforeSpin = http.Calls.Count; await (Task)Call(w, "SpinHosting")!;
-        Check(http.Calls.Count == beforeSpin, "Custom mode caused Spin to publish");
+        Check(http.Calls.Count == beforeSpin + 1 && (string?)http.Calls[^1]["gamemode"] == "Retry mode" && (string?)http.Calls[^1]["map"] == Get<HostingSpin>(w, "hostingResult").Map, "Spin must update the map while preserving Custom gamemode");
         modeSource.SelectedIndex = 0; await (Task)Call(w, "SendHostingAnnouncement", "update")!;
         Check((string?)http.Calls[^1]["gamemode"] == "", "Unset update did not remove gamemode");
         modeSource.SelectedIndex = 1; await (Task)Call(w, "SpinHosting")!;
@@ -128,7 +129,7 @@ static class HostingDesktopChecks
         int afterClose = http.Calls.Count; await (Task)Call(w, "SpinHosting")!;
         Check(http.Calls.Count == afterClose, "Spin reopened a closed lobby");
         Session(new string('g', 32));
-        Check(modeSource.SelectedIndex == 0 && customMode.Text == "", "Account change retained old gamemode fields");
+        Check(modeSource.SelectedIndex == 0 && customMode.Text == "" && Control<TextBox>(w, "HostingLobbyMap").Text == "", "Account change retained old lobby details");
         http.Hold = new TaskCompletionSource<HttpResponseMessage>(); code.Text = "SLOW12";
         var pending = (Task)Call(w, "SendHostingAnnouncement", "open")!; await Task.Delay(20);
         Check(!open.IsEnabled && !close.IsEnabled && code.IsReadOnly, "In-flight lobby request left controls enabled");

@@ -34,3 +34,5 @@ SGL refuses to overwrite an unmanaged `ue4ss` directory or `dwmapi.dll`. Back up
 Core checks use temporary game-folder fixtures and fake network responses. Desktop checks exercise discovery, offline fallback, configuration editing, updates, toggles and narrow layout. The runtime smoke check downloads the pinned archives, patches in staging, installs both real mod packages into a non-executable fixture and verifies configuration/toggling. It never loads a game DLL. Real P2P gameplay compatibility still needs host testing.
 
 Sources: [Splitgate-Mods](https://github.com/Splitgate-Architects/Splitgate-Mods), [UE4SS](https://github.com/UE4SS-RE/RE-UE4SS), [Architects UE4SS fork](https://github.com/Splitgate-Architects/RE-UE4SS).
+
+Game installation controls are under **Settings → Splitgate game folder**. **Find in Steam** reads Steam’s library records and selects the game’s Win64 folder when exactly one installation is found; otherwise use Browse. It does not launch, install or download Splitgate. Mods, Maps and Gamemodes display a reminder to close Splitgate before applying changes.

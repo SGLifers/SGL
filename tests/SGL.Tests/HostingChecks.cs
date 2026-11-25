@@ -56,8 +56,9 @@ static class HostingChecks
         try { await HostingAnnouncements.Announce("https://bot.example", new string('t', 43), "ABC123", new string('b', 32), handler: handler, action: "close"); check(false, "Close accepted an open response"); }
         catch (IOException) { check(true, "Unconfirmed close rejected"); }
         handler.Reply = "{\"status\":\"updated\",\"announcementId\":\"" + new string('a', 32) + "\"}";
-        response = await HostingAnnouncements.Announce("https://bot.example", new string('t', 43), "ABC123", new string('c', 32), handler: handler, action: "update", gamemode: "", announcementId: new string('a', 32));
+        response = await HostingAnnouncements.Announce("https://bot.example", new string('t', 43), "ABC123", new string('c', 32), handler: handler, action: "update", gamemode: "", announcementId: new string('a', 32), map: " Stadium ");
         check((string?)handler.Body["gamemode"] == "" && (string?)handler.Body["announcementId"] == new string('a',32), "Unset update or announcement identity lost");
+        check((string?)handler.Body["map"] == "Stadium", "Map name was lost or not normalized");
         handler.Status = HttpStatusCode.TooManyRequests; handler.Reply = "{\"error\":\"private token value\",\"retryAfter\":60}";
         try { await HostingAnnouncements.Announce("https://bot.example", new string('t', 43), "ABC123", new string('a', 32), handler: handler); check(false, "Rate limit was accepted"); }
         catch (HostingApiException error) { check(error.RetryAfter == 60 && !error.Message.Contains("private token"), "Upstream text leaked or retry delay lost"); }
