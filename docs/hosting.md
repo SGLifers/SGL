@@ -22,7 +22,7 @@ Use **Update details** to apply a Custom edit, remove a line with Unset, or retr
 
 ## Lobby announcements
 
-SGL connects to the deployed [SGL Discord Bot](https://github.com/SGLifers/SGL-Discord-Bot). Hosts sign in with Discord and must have the configured host role. Announcements currently target the configured test server and channel. No bot token or AWS credential is stored in the desktop application.
+SGL connects to the deployed [SGL Discord Bot](https://github.com/SGLifers/SGL-Discord-Bot). Hosts sign in with Discord and must have one of the configured host roles. Announcements target the configured community server and channel. No bot token or AWS credential is stored in the desktop application.
 
 After connection, sign in with Discord, optionally enter a lobby name, then enter or paste your six-character lobby code. Choose **Open Lobby** to post the announcement to Discord. Typing and changing tabs never send a message. Spin updates an existing open announcement only for fields set to SpinGate. The code accepts letters or digits and is normalized to uppercase. Names are limited to 80 characters on one line. The bot verifies the SGL session, server membership and configured host role/allowlist before posting to the operator-selected channel.
 
