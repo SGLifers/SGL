@@ -18,6 +18,16 @@ public partial class MainWindow
     string? hostingActor;
     string? hostingSessionKey;
     string hostingOpenCode = "";
+    string? hostingAnnouncementId;
+    string HostingGamemodeSourceValue => (string?)((ComboBoxItem?)HostingGamemodeSource.SelectedItem)?.Tag ?? "unset";
+    string HostingGamemode => HostingAnnouncements.Gamemode(HostingGamemodeSourceValue == "custom" ? HostingCustomGamemode.Text : HostingGamemodeSourceValue == "spingate" ? hostingResult?.Gamemode ?? "" : "");
+    void HostingGamemodeChanged(object sender, RoutedEventArgs e)
+    {
+        if (!hostingReady) return;
+        hostingGeneration++; hostingAnnouncementRequest?.Cancel();
+        RefreshHostingLobbyButtons();
+        if (hostingOpenCode.Length > 0) HostingAnnouncementStatus.Text = HostingGamemodeSourceValue == "spingate" ? "Spin to update the open lobby’s gamemode, or choose Update gamemode." : "Choose Update gamemode to apply this selection to the open lobby.";
+    }
     bool hostingLobbyBusy;
     int hostingGeneration;
     readonly Dictionary<string, string> hostingRequestIds = [];
@@ -52,10 +62,11 @@ public partial class MainWindow
         string? sessionKey = (string?)session?["token"] is string token ? SGL.Core.Json.Hash(System.Text.Encoding.UTF8.GetBytes(token)) : null;
         if (actor != hostingActor || sessionKey != hostingSessionKey)
         {
-            hostingActor = actor; hostingSessionKey = sessionKey; hostingRequestIds.Clear(); hostingOpenCode = "";
+            hostingActor = actor; hostingSessionKey = sessionKey; hostingRequestIds.Clear(); hostingOpenCode = ""; hostingAnnouncementId = null;
             hostingGeneration++; hostingAnnouncementRequest?.Cancel(); hostingAnnouncementRequest = null; hostingLobbyBusy = false;
             HostingLobbyCode.Clear();
             HostingLobbyName.Clear();
+            HostingGamemodeSource.SelectedIndex = 0; HostingCustomGamemode.Clear();
         }
         HostingAccount.Text = actor == null ? "Not signed in" : "Signed in as " + (string?)session?["user"]?["displayName"];
         HostingSignInButton.Visibility = actor == null ? Visibility.Visible : Visibility.Collapsed;
@@ -82,36 +93,45 @@ public partial class MainWindow
     void RefreshHostingLobbyButtons()
     {
         bool valid = false;
-        try { HostingAnnouncements.Code(HostingLobbyCode.Text); HostingAnnouncements.LobbyName(HostingLobbyName.Text); valid = true; } catch { }
+        try { HostingAnnouncements.Code(HostingLobbyCode.Text); HostingAnnouncements.LobbyName(HostingLobbyName.Text); _ = HostingGamemode; valid = true; } catch { }
         bool available = valid && hostingActor != null && !string.IsNullOrWhiteSpace(HostingEndpoint) && !hostingLobbyBusy;
         HostingOpenLobbyButton.IsEnabled = available && hostingOpenCode == "";
         HostingCloseLobbyButton.IsEnabled = available;
+        HostingUpdateGamemodeButton.Visibility = hostingOpenCode.Length > 0 && hostingAnnouncementId != null ? Visibility.Visible : Visibility.Collapsed;
+        HostingUpdateGamemodeButton.IsEnabled = available && hostingOpenCode.Length > 0 && hostingAnnouncementId != null;
+        HostingGamemodeSource.IsEnabled = !hostingLobbyBusy;
+        HostingCustomGamemode.IsReadOnly = hostingLobbyBusy;
+        HostingCustomGamemodePanel.Visibility = HostingGamemodeSourceValue == "custom" ? Visibility.Visible : Visibility.Collapsed;
+        HostingSpinButton.IsEnabled = !hostingLobbyBusy;
         HostingLobbyCode.IsReadOnly = HostingLobbyName.IsReadOnly = hostingLobbyBusy || hostingOpenCode != "";
     }
     async void HostingOpenLobby(object sender, RoutedEventArgs e) => await SendHostingAnnouncement("open");
     async void HostingCloseLobby(object sender, RoutedEventArgs e) => await SendHostingAnnouncement("close");
+    async void HostingUpdateGamemode(object sender, RoutedEventArgs e) => await SendHostingAnnouncement("update");
     async Task SendHostingAnnouncement(string action)
     {
-        if (hostingLobbyBusy || action == "open" && hostingOpenCode != "") return;
+        if (hostingLobbyBusy || action == "open" && hostingOpenCode != "" || action == "update" && (hostingOpenCode == "" || hostingAnnouncementId == null)) return;
         int generation = hostingGeneration;
-        string code, lobbyName;
-        try { code = HostingAnnouncements.Code(HostingLobbyCode.Text); lobbyName = HostingAnnouncements.LobbyName(HostingLobbyName.Text); } catch { return; }
+        string code, lobbyName, gamemode;
+        try { code = HostingAnnouncements.Code(HostingLobbyCode.Text); lobbyName = HostingAnnouncements.LobbyName(HostingLobbyName.Text); gamemode = action == "close" ? "" : HostingGamemode; } catch { return; }
         var session = Session(LibraryRoot).Load();
         string? actor = (string?)session?["user"]?["id"], token = (string?)session?["token"];
         string endpoint = HostingEndpoint;
         if (actor == null || actor != hostingActor || token == null || string.IsNullOrWhiteSpace(endpoint)) { RefreshHostingAccount(); return; }
-        string key = actor + ":" + action + ":" + code + (action == "open" ? ":" + lobbyName : "");
+        string key = actor + ":" + action + ":" + code + (action == "open" ? ":" + new JsonArray(lobbyName, gamemode).ToJsonString() : action == "update" ? ":" + hostingAnnouncementId + ":" + gamemode : "");
+        if (action == "update") foreach (string old in hostingRequestIds.Keys.Where(k => k.StartsWith(actor + ":update:" + code + ":", StringComparison.Ordinal) && k != key).ToArray()) hostingRequestIds.Remove(old);
         if (!hostingRequestIds.TryGetValue(key, out string? requestId)) hostingRequestIds[key] = requestId = Guid.NewGuid().ToString("N");
         using var cancel = new CancellationTokenSource();
         hostingAnnouncementRequest = cancel; hostingLobbyBusy = true; RefreshHostingLobbyButtons();
-        HostingAnnouncementStatus.Text = action == "open" ? "Opening lobby…" : "Closing lobby…";
+        HostingAnnouncementStatus.Text = action == "open" ? "Opening lobby…" : action == "update" ? "Updating gamemode…" : "Closing lobby…";
         bool Current() => generation == hostingGeneration && actor == hostingActor && endpoint == HostingEndpoint && token == (string?)Session(LibraryRoot).Load()?["token"];
         try
         {
-            var result = await HostingAnnouncements.Announce(endpoint, token, code, requestId, cancel.Token, hostingTransport, lobbyName, action);
+            var result = await HostingAnnouncements.Announce(endpoint, token, code, requestId, cancel.Token, hostingTransport, lobbyName, action, gamemode, hostingAnnouncementId);
             if (!Current()) return;
             bool closed = (string?)result["status"] == "closed" || (string?)result["lobbyStatus"] == "closed";
             hostingOpenCode = closed ? "" : code;
+            hostingAnnouncementId = closed ? null : (string?)result["announcementId"] ?? hostingAnnouncementId;
             if (closed)
             {
                 foreach (string old in hostingRequestIds.Keys.Where(k => k.StartsWith(actor + ":open:" + code + ":", StringComparison.Ordinal)).ToArray()) hostingRequestIds.Remove(old);
@@ -120,7 +140,8 @@ public partial class MainWindow
             else
             {
                 hostingRequestIds.Remove(actor + ":close:" + code);
-                HostingAnnouncementStatus.Text = "Lobby open in Discord. Choose Close Lobby when you finish hosting.";
+                if (action == "update") hostingRequestIds.Remove(key);
+                HostingAnnouncementStatus.Text = action == "update" ? "Gamemode updated in Discord." : "Lobby open in Discord. Choose Close Lobby when you finish hosting.";
             }
         }
         catch (OperationCanceledException) when (cancel.IsCancellationRequested) { }
@@ -133,9 +154,10 @@ public partial class MainWindow
             if (!Current()) return;
             int retry = error is HostingApiException api ? api.RetryAfter : error is HttpRequestException or OperationCanceledException ? 15 : 0;
             HostingAnnouncementStatus.Text = error is HostingApiException ? error.Message : "Lobby request not confirmed. Check the Discord channel, then retry the same button.";
-            if (action == "close" && error is HostingApiException { Status: HttpStatusCode.NotFound })
+            if (action is "close" or "update" && error is HostingApiException { Status: HttpStatusCode.NotFound })
             {
-                hostingOpenCode = "";
+                hostingOpenCode = ""; hostingAnnouncementId = null;
+                foreach (string old in hostingRequestIds.Keys.Where(k => k.StartsWith(actor + ":open:" + code + ":", StringComparison.Ordinal)).ToArray()) hostingRequestIds.Remove(old);
                 HostingAnnouncementStatus.Text += " Check Discord; you can edit the lobby details.";
             }
             if (retry > 0) HostingAnnouncementStatus.Text += $" Wait {retry} seconds, then retry the same button.";
@@ -183,9 +205,13 @@ public partial class MainWindow
             HostingSpinStatus.Text = error.Message;
         }
     }
-    void HostingSpinClick(object sender, RoutedEventArgs e)
+    async void HostingSpinClick(object sender, RoutedEventArgs e) => await SpinHosting();
+    async Task SpinHosting()
     {
-        try { hostingResult = hostingSpinner.Spin(CurrentHostingRotation); HostingSpinMode.Text = hostingResult.Gamemode; HostingSpinMap.Text = hostingResult.Map; CopyHostingModeButton.IsEnabled = CopyHostingMapButton.IsEnabled = true; HostingSpinStatus.Text = "Using " + string.Join(" + ", CurrentHostingRotation.Assignments[hostingResult.Gamemode]) + ". Spin again for another matchup."; }
+        if (hostingLobbyBusy) return;
+        try { hostingResult = hostingSpinner.Spin(CurrentHostingRotation); HostingSpinMode.Text = hostingResult.Gamemode; HostingSpinMap.Text = hostingResult.Map; CopyHostingModeButton.IsEnabled = CopyHostingMapButton.IsEnabled = true; HostingSpinStatus.Text = "Using " + string.Join(" + ", CurrentHostingRotation.Assignments[hostingResult.Gamemode]) + ". Spin again for another matchup.";
+            if (HostingGamemodeSourceValue == "spingate" && hostingOpenCode.Length > 0 && hostingAnnouncementId != null) await SendHostingAnnouncement("update");
+        }
         catch (Exception error) { HostingSpinStatus.Text = error.Message; }
     }
     void CopyHostingMode(object sender, RoutedEventArgs e) => Run(() => { if (hostingResult != null) Clipboard.SetText(HostingRotation.CopyModeName(hostingResult.Gamemode)); });

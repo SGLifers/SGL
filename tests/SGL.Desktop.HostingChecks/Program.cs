@@ -56,6 +56,9 @@ static class HostingDesktopChecks
         Check(saved["Friday event"].Gamemodes.SequenceEqual(new[] { "Custom A", "Custom B" }) && saved["Quick Play"].Gamemodes.Count == 10, "Spinner persistence mutated the source preset");
         Control<TextBox>(w, "HostingModesInput").Clear(); Call(w, "SaveHostingModes", w, new RoutedEventArgs());
         Check((string)presets.SelectedItem == "Friday event" && Control<TextBox>(w, "HostingModesInput").Text == "", "Invalid edit lost selection or input");
+        var modeSource = Control<ComboBox>(w, "HostingGamemodeSource");
+        var customMode = Control<TextBox>(w, "HostingCustomGamemode");
+        Check(modeSource.Items.Count == 3 && modeSource.SelectedIndex == 0 && Control<StackPanel>(w, "HostingCustomGamemodePanel").Visibility == Visibility.Collapsed, "Gamemode source must default to Unset");
         var code = Control<TextBox>(w, "HostingLobbyCode");
         var lobbyName = Control<TextBox>(w, "HostingLobbyName");
         Check(code.MaxLength == 6 && code.Width == 160 && lobbyName.MaxLength == 80, "Lobby inputs have incorrect limits or code width");
@@ -77,7 +80,7 @@ static class HostingDesktopChecks
         Check(http.Calls.Count == 0 && open.IsEnabled && close.IsEnabled, "Typing announced a lobby or failed to enable buttons");
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
         Check(http.Calls.Count == 1 && (string?)http.Calls[0]["code"] == "ABC123" && (string?)http.Calls[0]["action"] == "open", "Open Lobby did not send the chosen code");
-        Check((string?)http.Calls[0]["lobbyName"] == "Friday games", "Open Lobby omitted the latest lobby name");
+        Check((string?)http.Calls[0]["lobbyName"] == "Friday games" && http.Calls[0]["gamemode"] == null, "Unset must omit the gamemode");
         Check(!open.IsEnabled && close.IsEnabled && code.IsReadOnly && lobbyName.IsReadOnly, "Open lobby did not lock its details");
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
         Check(http.Calls.Count == 1, "Repeated Open Lobby created another request");
@@ -98,6 +101,34 @@ static class HostingDesktopChecks
         var retries = http.Calls.Where(c => (string?)c["code"] == "RETRY1").ToArray();
         Check(retries.Length == 2 && (string?)retries[0]["requestId"] == (string?)retries[1]["requestId"], "Manual retry changed its request identity");
         await (Task)Call(w, "SendHostingAnnouncement", "close")!;
+        code.Text = "MODE12"; modeSource.SelectedIndex = 2; customMode.Text = "Custom SWAT";
+        Check(Control<StackPanel>(w, "HostingCustomGamemodePanel").Visibility == Visibility.Visible, "Custom text input missing");
+        await (Task)Call(w, "SendHostingAnnouncement", "open")!;
+        Check((string?)http.Calls[^1]["gamemode"] == "Custom SWAT", "Custom gamemode omitted from open");
+        int beforeTyping = http.Calls.Count; customMode.Text = "Custom KOTH";
+        Check(http.Calls.Count == beforeTyping && Control<Button>(w, "HostingUpdateGamemodeButton").IsEnabled, "Custom typing sent automatically or disabled update");
+        await (Task)Call(w, "SendHostingAnnouncement", "update")!;
+        Check((string?)http.Calls[^1]["gamemode"] == "Custom KOTH" && http.Calls[^1]["announcementId"] != null, "Custom edit failed to target original announcement");
+        customMode.Text = "Retry mode"; http.FailOnce = HttpStatusCode.ServiceUnavailable;
+        await (Task)Call(w, "SendHostingAnnouncement", "update")!; string? updateRetryId = (string?)http.Calls[^1]["requestId"];
+        await (Task)Call(w, "SendHostingAnnouncement", "update")!;
+        Check((string?)http.Calls[^1]["requestId"] == updateRetryId, "Gamemode retry changed its identity");
+        int beforeSpin = http.Calls.Count; await (Task)Call(w, "SpinHosting")!;
+        Check(http.Calls.Count == beforeSpin, "Custom mode caused Spin to publish");
+        modeSource.SelectedIndex = 0; await (Task)Call(w, "SendHostingAnnouncement", "update")!;
+        Check((string?)http.Calls[^1]["gamemode"] == "", "Unset update did not remove gamemode");
+        modeSource.SelectedIndex = 1; await (Task)Call(w, "SpinHosting")!;
+        Check((string?)http.Calls[^1]["action"] == "update" && (string?)http.Calls[^1]["gamemode"] == Get<HostingSpin>(w, "hostingResult").Gamemode, "SpinGate did not update the same card");
+        http.Hold = new TaskCompletionSource<HttpResponseMessage>();
+        var spinning = (Task)Call(w, "SpinHosting")!; await Task.Delay(20); int updatingCount = http.Calls.Count;
+        await (Task)Call(w, "SpinHosting")!;
+        Check(http.Calls.Count == updatingCount && !Control<Button>(w, "HostingSpinButton").IsEnabled, "Concurrent spins sent out-of-order updates");
+        http.Hold.SetResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{\"status\":\"updated\",\"lobbyStatus\":\"open\",\"announcementId\":\"" + http.CurrentAnnouncement + "\"}") }); await spinning; http.Hold = null;
+        await (Task)Call(w, "SendHostingAnnouncement", "close")!;
+        int afterClose = http.Calls.Count; await (Task)Call(w, "SpinHosting")!;
+        Check(http.Calls.Count == afterClose, "Spin reopened a closed lobby");
+        Session(new string('g', 32));
+        Check(modeSource.SelectedIndex == 0 && customMode.Text == "", "Account change retained old gamemode fields");
         http.Hold = new TaskCompletionSource<HttpResponseMessage>(); code.Text = "SLOW12";
         var pending = (Task)Call(w, "SendHostingAnnouncement", "open")!; await Task.Delay(20);
         Check(!open.IsEnabled && !close.IsEnabled && code.IsReadOnly, "In-flight lobby request left controls enabled");
@@ -122,15 +153,17 @@ static class HostingDesktopChecks
     }
     sealed class FakeHosting : HttpMessageHandler
     {
-        public List<JsonObject> Calls = []; public bool RateLimitOnce; public HttpStatusCode? FailOnce; public TaskCompletionSource<HttpResponseMessage>? Hold;
+        public List<JsonObject> Calls = []; public string? CurrentAnnouncement; public bool RateLimitOnce; public HttpStatusCode? FailOnce; public TaskCompletionSource<HttpResponseMessage>? Hold;
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Calls.Add(Json.Read(await request.Content!.ReadAsStringAsync()).AsObject());
             if (Hold != null) return await Hold.Task;
             if (FailOnce is HttpStatusCode status) { FailOnce = null; return new(status) { Content = new StringContent("{}") }; }
             if (RateLimitOnce) { RateLimitOnce = false; return new(HttpStatusCode.TooManyRequests) { Content = new StringContent("{\"retryAfter\":1}") }; }
-            bool closed = (string?)Calls[^1]["action"] == "close";
-            return new(HttpStatusCode.OK) { Content = new StringContent(new JsonObject { ["status"] = closed ? "closed" : "sent", ["lobbyStatus"] = closed ? "closed" : "open", ["messageId"] = "123456789012345678" }.ToJsonString()) };
+            string? action = (string?)Calls[^1]["action"];
+            bool closed = action == "close";
+            if (action == "open") CurrentAnnouncement = (string?)Calls[^1]["requestId"];
+            return new(HttpStatusCode.OK) { Content = new StringContent(new JsonObject { ["status"] = closed ? "closed" : action == "update" ? "updated" : "sent", ["lobbyStatus"] = closed ? "closed" : "open", ["messageId"] = "123456789012345678", ["announcementId"] = CurrentAnnouncement }.ToJsonString()) };
         }
     }
 }

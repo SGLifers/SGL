@@ -10,6 +10,16 @@ Select a preset and choose **Spin**. Only gamemodes with assigned maps participa
 
 Expand **Configure rotation** to copy/delete presets, restore a built-in preset, edit gamemodes and map lists, and link each mode to one or more lists. Unlinked modes do not participate. You can add installed gamemode names or use installed map names as a list; assign compatible links explicitly. Saved changes reset rotation history. Settings persist in `%LOCALAPPDATA%/SGL/Hosting/rotations.json`, with the previous file kept as `rotations.json.previous`. Browser-saved SpinGate presets are not imported automatically.
 
+## Optional gamemode
+
+**Gamemode** has three choices and starts on **Unset**:
+
+- **Unset** omits the Gamemode line from the Discord embed.
+- **SpinGate** includes the most recent spinner result. After Open Lobby, each successful **Spin** updates the existing announcement. Spinning before opening or after closing only changes the local spinner.
+- **Custom** shows a text field for a single-line gamemode name, up to 120 characters.
+
+For an open lobby, use **Update gamemode** to apply Custom text, remove the line with Unset, or retry a failed SpinGate update. Typing and changing the selector do not publish. The lobby's name and code remain locked until it closes. Signing in as another account resets the selector to Unset and clears custom text. Updates retain the same announcement and do not consume the daily new-lobby allowance.
+
 ## Lobby announcements
 
 SGL connects to the deployed [SGL Discord Bot](https://github.com/SGLifers/SGL-Discord-Bot). Hosts sign in with Discord and must have the configured host role. Announcements currently target the configured test server and channel. No bot token or AWS credential is stored in the desktop application.
