@@ -34,13 +34,15 @@
                                 <StackPanel x:Name="HostingCustomMapPanel" Visibility="Collapsed" Margin="0,8,0,0"><TextBox x:Name="HostingLobbyMap" MaxLength="120" TextChanged="HostingGamemodeChanged" AutomationProperties.Name="Map"/></StackPanel>
                             </StackPanel>
                         </Grid>
+                        <CheckBox x:Name="HostingCollectStats" Content="Collect stats" IsChecked="True" Margin="0,12,0,0" AutomationProperties.Name="Collect stats for this lobby" ToolTip="Collect game-log stats for this lobby session; scoreboard and memory stats will be added later."/>
                         <WrapPanel Margin="0,12,0,0">
                             <Button x:Name="HostingOpenLobbyButton" Content="Open Lobby" Click="HostingOpenLobby" IsEnabled="False" Background="{StaticResource Gold}" Foreground="#171027" MinWidth="130" Margin="0,0,10,0"/>
                             <Button x:Name="HostingCloseLobbyButton" Content="Close Lobby" Click="HostingCloseLobby" IsEnabled="False" MinWidth="130"/>
                             <Button x:Name="HostingUpdateGamemodeButton" Content="Update details" Click="HostingUpdateGamemode" Visibility="Collapsed" IsEnabled="False"/>
                         </WrapPanel>
                         <TextBlock Text="Open Lobby posts to Discord. Close Lobby marks that announcement closed. These buttons do not control the lobby in-game." Foreground="#B9B7D6" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                        <TextBlock x:Name="HostingAnnouncementStatus" TextWrapping="Wrap" Foreground="#F3BE4F" Margin="0,6,0,24"/>
+                        <TextBlock x:Name="HostingAnnouncementStatus" TextWrapping="Wrap" Foreground="#F3BE4F" Margin="0,6,0,8"/>
+                        <TextBlock x:Name="StatisticsStatus" Text="Collect stats is enabled by default for a new lobby." TextWrapping="Wrap" Foreground="#B9B7D6" Margin="0,0,0,24"/>
                         <TextBlock Text="SpinGate" FontSize="22" Margin="0,0,0,10"/>
                         <TextBlock Text="Rotation preset" Margin="0,0,0,5"/>
                         <ComboBox x:Name="HostingPreset" SelectionChanged="HostingPresetChanged"/>
@@ -585,6 +587,8 @@
                             <Button DockPanel.Dock="Right" Content="Find in Steam" Click="FindModGame" Margin="8,0,0,0"/>
                             <TextBox x:Name="ModGameFolder" IsReadOnly="True" ToolTip="Game installation, separate from the CloudSave folder"/>
                         </DockPanel>
+                        <TextBlock Text="Statistics game log" FontSize="18" Margin="0,12,0,4"/>
+                        <TextBox x:Name="StatisticsLogPath" LostFocus="StatisticsPathSaved" AutomationProperties.Name="Statistics game log path" ToolTip="PortalWars2.log location. Changes apply to the next lobby."/>
                         <TextBlock Text="CloudSave folder" FontSize="18" Margin="0,12,0,0" />
                         <Grid Margin="0,8,0,20">
                             <Grid.ColumnDefinitions>

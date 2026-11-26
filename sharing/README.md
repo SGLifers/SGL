@@ -12,7 +12,7 @@ Reservations are **off by default**. Both functions share the account's unreserv
 
 ```powershell
 ./sharing/infra/deploy.ps1 -Profile YOUR_PROFILE -AccountId YOUR_ACCOUNT_ID -Region us-west-2 -BudgetEmail YOU@example.com -PlanOnly
-./sharing/infra/deploy.ps1 -Profile YOUR_PROFILE -AccountId YOUR_ACCOUNT_ID -Region us-west-2 -BudgetEmail YOU@example.com -MonthlyBudgetUsd 10
+./sharing/infra/deploy.ps1 -Profile YOUR_PROFILE -AccountId YOUR_ACCOUNT_ID -Region us-west-2 -BudgetEmail YOU@example.com -MonthlyBudgetUsd 30
 ```
 
 `-PlanOnly` checks the account/template and existing budget-control status, then builds a local ZIP. It does not create a CloudFormation change set or change resource configuration; the read-only status invocation can produce normal Lambda logs/usage. Deployment uploads the ZIP to a private account/region artifact bucket, creates/updates the `sgl-sharing` stack, records outputs in ignored `artifacts/sharing-deploy/outputs.json`, and writes the public API endpoint to the desktop's embedded `library-service.json`. It preserves an existing pause in the stack parameters and reconciles the guard after deployment. A failed or malformed guard status stops deployment. Rebuild the app after deployment. Development builds can use `--sharing-service https://your-test-endpoint` to select a test service; release builds always use the embedded endpoint.
@@ -21,7 +21,7 @@ The stack includes a private encrypted/versioned content bucket, on-demand Dynam
 
 ## Budget alerts and automatic cutoff
 
-The default **$10 USD monthly budget is account-wide**, including other workloads and regions in this account. Override the amount with `-MonthlyBudgetUsd`. It emails the required `-BudgetEmail` recipient when AWS reports actual cost above 50%, 80% and 100% ($5, $8 and $10 at the default). These use `GREATER_THAN` thresholds, so exact equality does not trigger. Confirm any budget recipient verification email and the separate **SGL budget guard failures** SNS subscription before relying on delivery.
+The default **$30 USD monthly budget is account-wide**, including other workloads and regions in this account. Override the amount with `-MonthlyBudgetUsd`. It emails the required `-BudgetEmail` recipient when AWS reports actual cost above 50%, 80% and 100% ($15, $24 and $30 at the default). These use `GREATER_THAN` thresholds, so exact equality does not trigger. Confirm any budget recipient verification email and the separate **SGL budget guard failures** SNS subscription before relying on delivery.
 
 The 100% notification also goes to a dedicated SNS topic. Its scoped policy accepts only this account's SGL budget; the cutoff function accepts only that topic and does not parse AWS's notification prose. It persists a pause under `CONTROL#BUDGET` in DynamoDB, adds a bucket-policy deny for object downloads/uploads (including outstanding presigned URLs), and changes the sharing API route to `AWS_IAM`, blocking ordinary client requests before Lambda runs. Authorized AWS IAM operators can still invoke the API; clients use the separate SGL session and have no AWS credentials. In reserved mode it also sets API reserved concurrency to zero. Both cutoff operations are attempted independently; failures raise an error. No maps, modes, history or user data are deleted. Local editing and portable packages continue to work.
 

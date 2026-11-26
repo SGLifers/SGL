@@ -1,4 +1,7 @@
 $ErrorActionPreference = 'Stop'
+# The aws function mock must emit an unwrapped CLI-like diagnostic on every host.
+$previousErrorView = $ErrorView
+$ErrorView = 'NormalView'
 # No real AWS executable or credentials are used by this test.
 $source = Split-Path $PSScriptRoot -Parent
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ('sgl-deploy-test-' + [guid]::NewGuid().ToString('N'))
@@ -74,7 +77,7 @@ try {
         if ($profile -lt 0 -or $call[$profile+1] -ne 'MOCK_ONLY' -or $region -lt 0 -or $call[$region+1] -ne 'us-west-2') { throw 'Deployment lost its profile/region.' }
     }
     if (!($global:SglDeploymentMockCalls | Where-Object { $_[0] -eq 's3api' -and $_[1] -eq 'create-bucket' -and $_ -contains 'LocationConstraint=us-west-2' })) { throw 'Bucket location is invalid.' }
-    if (!($global:SglDeploymentMockCalls | Where-Object { $_[1] -eq 'deploy' -and $_ -contains 'MonthlyBudgetUsd=10' -and $_ -contains 'SharingPaused=false' -and $_ -contains 'UseReservedConcurrency=false' -and $_ -contains 'BudgetEmail=ci@example.invalid' })) { throw 'Deployment lost its budget configuration.' }
+    if (!($global:SglDeploymentMockCalls | Where-Object { $_[1] -eq 'deploy' -and $_ -contains 'MonthlyBudgetUsd=30' -and $_ -contains 'SharingPaused=false' -and $_ -contains 'UseReservedConcurrency=false' -and $_ -contains 'BudgetEmail=ci@example.invalid' })) { throw 'Deployment lost its budget configuration.' }
     $configuration=Get-Content -LiteralPath (Join-Path $fixture 'src/SGL.Core/Data/library-service.json') -Raw | ConvertFrom-Json
     if ($configuration.apiUrl -ne 'https://mock.execute-api.us-west-2.amazonaws.com') { throw 'API output missing.' }
     $global:SglDeploymentMockCalls.Clear(); $global:SglMock.Paused=$true
@@ -101,6 +104,7 @@ try {
     Write-Output 'Passed mocked deployment and operator controls: account guard, mandatory budget config, preserved pause, failed status rejection, status/pause/acknowledged resume. No real AWS calls.'
 }
 finally {
+    $ErrorView = $previousErrorView
     Remove-Item -LiteralPath 'Function:\aws' -ErrorAction SilentlyContinue
     Remove-Variable SglDeploymentMockCalls,SglMock -Scope Global -ErrorAction SilentlyContinue
 }

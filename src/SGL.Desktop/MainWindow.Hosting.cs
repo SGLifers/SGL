@@ -52,7 +52,7 @@ public partial class MainWindow
         HostingPreset.ItemsSource = hostingRotations.Keys.ToArray();
         HostingPreset.SelectedItem = (string?)Preferences()["hostingPreset"] is string saved && hostingRotations.ContainsKey(saved) ? saved : hostingRotations.Keys.First();
         renderingHosting = false; hostingReady = true;
-        RenderHostingRotation(); RefreshHostingAccount();
+        InitializeStatistics(); RenderHostingRotation(); RefreshHostingAccount();
         if (notice != null) HostingSpinStatus.Text = notice;
         Closed += (_, _) => hostingAnnouncementRequest?.Cancel();
     }
@@ -64,6 +64,7 @@ public partial class MainWindow
         string? sessionKey = (string?)session?["token"] is string token ? SGL.Core.Json.Hash(System.Text.Encoding.UTF8.GetBytes(token)) : null;
         if (actor != hostingActor || sessionKey != hostingSessionKey)
         {
+            ResetStatisticsChoice();
             hostingActor = actor; hostingSessionKey = sessionKey; hostingRequestIds.Clear(); hostingOpenCode = ""; hostingAnnouncementId = null;
             hostingGeneration++; hostingAnnouncementRequest?.Cancel(); hostingAnnouncementRequest = null; hostingLobbyBusy = false;
             HostingLobbyCode.Clear();
@@ -98,6 +99,8 @@ public partial class MainWindow
         try { HostingAnnouncements.Code(HostingLobbyCode.Text); HostingAnnouncements.LobbyName(HostingLobbyName.Text); _ = HostingGamemode; _ = HostingMap; valid = true; } catch { }
         bool available = valid && hostingActor != null && !string.IsNullOrWhiteSpace(HostingEndpoint) && !hostingLobbyBusy;
         HostingOpenLobbyButton.IsEnabled = available && hostingOpenCode == "";
+        HostingCollectStats.IsEnabled = !hostingLobbyBusy && hostingOpenCode == "" && statisticsOpenChoices.Count == 0;
+        StatisticsLogPath.IsEnabled = statisticsCollection == null;
         HostingCloseLobbyButton.IsEnabled = available;
         HostingUpdateGamemodeButton.Visibility = hostingOpenCode.Length > 0 && hostingAnnouncementId != null ? Visibility.Visible : Visibility.Collapsed;
         HostingUpdateGamemodeButton.IsEnabled = available && hostingOpenCode.Length > 0 && hostingAnnouncementId != null;
@@ -124,6 +127,7 @@ public partial class MainWindow
         string key = actor + ":" + action + ":" + code + (action == "open" ? ":" + new JsonArray(lobbyName, gamemode, map).ToJsonString() : action == "update" ? ":" + hostingAnnouncementId + ":" + new JsonArray(gamemode, map).ToJsonString() : "");
         if (action == "update") foreach (string old in hostingRequestIds.Keys.Where(k => k.StartsWith(actor + ":update:" + code + ":", StringComparison.Ordinal) && k != key).ToArray()) hostingRequestIds.Remove(old);
         if (!hostingRequestIds.TryGetValue(key, out string? requestId)) hostingRequestIds[key] = requestId = Guid.NewGuid().ToString("N");
+        if (action == "open" && !statisticsOpenChoices.ContainsKey(requestId)) statisticsOpenChoices[requestId] = HostingCollectStats.IsChecked == true;
         using var cancel = new CancellationTokenSource();
         hostingAnnouncementRequest = cancel; hostingLobbyBusy = true; RefreshHostingLobbyButtons();
         HostingAnnouncementStatus.Text = action == "open" ? "Opening lobby…" : action == "update" ? "Updating lobby details…" : "Closing lobby…";
@@ -138,11 +142,16 @@ public partial class MainWindow
             if (closed)
             {
                 foreach (string old in hostingRequestIds.Keys.Where(k => k.StartsWith(actor + ":open:" + code + ":", StringComparison.Ordinal)).ToArray()) hostingRequestIds.Remove(old);
+                ResetStatisticsChoice();
                 HostingAnnouncementStatus.Text = "Lobby closed in Discord.";
             }
             else
             {
                 hostingRequestIds.Remove(actor + ":close:" + code);
+                if (action == "open" && statisticsOpenChoices.GetValueOrDefault(requestId))
+                {
+                    try { StartStatistics(actor, token); } catch { StatisticsStatus.Text = "Lobby announced. Stats could not start; check the game log location."; }
+                }
                 if (action == "update") hostingRequestIds.Remove(key);
                 HostingAnnouncementStatus.Text = action == "update" ? "Lobby details updated in Discord." : "Lobby open in Discord. Choose Close Lobby when you finish hosting.";
             }
@@ -159,7 +168,7 @@ public partial class MainWindow
             HostingAnnouncementStatus.Text = error is HostingApiException ? error.Message : "Lobby request not confirmed. Check the Discord channel, then retry the same button.";
             if (action is "close" or "update" && error is HostingApiException { Status: HttpStatusCode.NotFound })
             {
-                hostingOpenCode = ""; hostingAnnouncementId = null;
+                hostingOpenCode = ""; hostingAnnouncementId = null; ResetStatisticsChoice();
                 foreach (string old in hostingRequestIds.Keys.Where(k => k.StartsWith(actor + ":open:" + code + ":", StringComparison.Ordinal)).ToArray()) hostingRequestIds.Remove(old);
                 HostingAnnouncementStatus.Text += " Check Discord; you can edit the lobby details.";
             }

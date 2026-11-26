@@ -1,0 +1,15 @@
+name: Validate statistics collector
+on:
+  push:
+    paths: ['src/SGL.Core/Statistics*.cs', 'tests/SGL.Statistics.Tests/**', '.github/workflows/statistics.yml']
+  pull_request:
+    paths: ['src/SGL.Core/Statistics*.cs', 'tests/SGL.Statistics.Tests/**', '.github/workflows/statistics.yml']
+permissions: {contents: read}
+jobs:
+  collector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '10.0.x'}
+      - run: dotnet run --project tests/SGL.Statistics.Tests -c Release

@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <ItemGroup>
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.15" />
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.14" />
         <PackageReference Include="LibGit2Sharp" Version="0.32.0" />
         <EmbeddedResource Include="Data\*.json;Data\*.txt" LogicalName="%(Filename)%(Extension)" />
         <EmbeddedResource Include="Data\Bases\*.json" LogicalName="base.%(Filename)%(Extension)" />

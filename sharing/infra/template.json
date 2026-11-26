@@ -17,7 +17,7 @@
     },
     "MonthlyBudgetUsd": {
       "Type": "Number",
-      "Default": 10,
+      "Default": 30,
       "MinValue": 1,
       "MaxValue": 10000,
       "Description": "Account-wide monthly USD budget. Notifications are delayed; this is not a hard spending cap."
@@ -1262,6 +1262,11 @@
     "BudgetFailureQueueUrl": {
       "Value": {
         "Ref": "BudgetFailureQueue"
+      }
+    },
+    "BudgetCutoffTopicArn": {
+      "Value": {
+        "Ref": "BudgetCutoffTopic"
       }
     }
   }

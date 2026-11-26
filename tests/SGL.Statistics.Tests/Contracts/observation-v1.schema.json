@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/djcowchaser/SplitStatsInfra/contracts/observation-v1.schema.json",
+  "title": "SplitStats observation version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "observationId",
+    "matchKey",
+    "source",
+    "sourceRevision",
+    "clockStatus",
+    "completion",
+    "sourceRole",
+    "mode",
+    "participants"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "observationId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]{1,96}$"
+    },
+    "matchKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "collectorId",
+        "sourceGenerationId",
+        "matchStartOffset"
+      ],
+      "properties": {
+        "collectorId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,96}$"
+        },
+        "sourceGenerationId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,96}$"
+        },
+        "matchStartOffset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "source": {
+      "enum": [
+        "game_log",
+        "scoreboard",
+        "game_memory"
+      ]
+    },
+    "sourceRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "startedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "endedAt": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "clockStatus": {
+      "enum": [
+        "verified",
+        "unverified",
+        "unknown"
+      ]
+    },
+    "sourceTimestampRaw": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "completion": {
+      "enum": [
+        "complete",
+        "incomplete"
+      ]
+    },
+    "sourceRole": {
+      "enum": [
+        "server",
+        "client",
+        "unknown"
+      ]
+    },
+    "mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "rulesScope"
+      ],
+      "properties": {
+        "family": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,96}$"
+        },
+        "rulesScope": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,96}$"
+        }
+      }
+    },
+    "map": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 256
+    },
+    "authorityLost": {
+      "type": "boolean"
+    },
+    "finishReason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "scope": {
+      "type": "string",
+      "pattern": "^(community|tournament#[a-zA-Z0-9_-]{1,80})$"
+    },
+    "ingestionKind": {
+      "enum": [
+        "live",
+        "tournament_import"
+      ]
+    },
+    "event": {
+      "type": "object"
+    },
+    "rounds": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object"
+      }
+    },
+    "medals": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": {
+        "type": "object",
+        "required": [
+          "position",
+          "code"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "position": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "participantId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      }
+    },
+    "participants": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "displayName"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,96}$"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "isBot": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "team": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 80
+          },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "combat.kills": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000.0
+              },
+              "combat.deaths": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000.0
+              },
+              "combat.damage": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000.0
+              },
+              "experience.xp": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000.0
+              },
+              "objective.captures": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000.0
+              },
+              "objective.hill_time": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000.0
+              },
+              "scoreboard.score": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1000000000000.0
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

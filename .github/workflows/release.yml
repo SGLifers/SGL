@@ -20,6 +20,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Build desktop
         run: dotnet build src/SGL.Desktop/SGL.Desktop.csproj -c Release
+      - name: Test statistics parser and durable outbox
+        run: dotnet run --project tests/SGL.Statistics.Tests -c Release
       - name: Test core and history
         run: dotnet run --project tests/SGL.Tests -c Release
       - name: Test all audited gamemode controls in isolated folders

@@ -4,7 +4,7 @@ param(
     [string]$Region = 'us-west-2',
     [ValidatePattern('^[a-z][a-z0-9-]{2,40}$')][string]$StackName = 'sgl-sharing',
     [Parameter(Mandatory)][ValidatePattern('^[^\s@]+@[^\s@]+\.[^\s@]+$')][string]$BudgetEmail,
-    [ValidateRange(1,10000)][decimal]$MonthlyBudgetUsd = 10,
+    [ValidateRange(1,10000)][decimal]$MonthlyBudgetUsd = 30,
     [switch]$UseReservedConcurrency,
     [switch]$PlanOnly
 )

@@ -62,6 +62,8 @@ static class HostingDesktopChecks
         var mapInput = Control<TextBox>(w, "HostingLobbyMap");
         Check(mapSource.Items.Count == 3 && mapSource.SelectedIndex == 0 && Control<StackPanel>(w, "HostingCustomMapPanel").Visibility == Visibility.Collapsed, "Map must have the same three choices and default to Unset");
         Check(modeSource.Items.Count == 3 && modeSource.SelectedIndex == 0 && Control<StackPanel>(w, "HostingCustomGamemodePanel").Visibility == Visibility.Collapsed, "Gamemode source must default to Unset");
+        var collectStats = Control<CheckBox>(w, "HostingCollectStats");
+        Check(collectStats.IsChecked == true, "New lobbies must collect stats by default");
         var code = Control<TextBox>(w, "HostingLobbyCode");
         var lobbyName = Control<TextBox>(w, "HostingLobbyName");
         Check(code.MaxLength == 6 && code.Width == 160 && lobbyName.MaxLength == 80, "Lobby inputs have incorrect limits or code width");
@@ -81,7 +83,9 @@ static class HostingDesktopChecks
         code.Text = "ABC12"; Check(!open.IsEnabled && !close.IsEnabled, "Incomplete code enabled lobby controls");
         code.Text = "ABC123"; lobbyName.Text = "Friday games"; await Task.Delay(2200);
         Check(http.Calls.Count == 0 && open.IsEnabled && close.IsEnabled, "Typing announced a lobby or failed to enable buttons");
+        collectStats.IsChecked = false;
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
+        Check(typeof(MainWindow).GetField("statisticsCollection", Flags)!.GetValue(w) == null && !collectStats.IsEnabled, "Lobby opt-out started collection or left its choice editable");
         Check(http.Calls.Count == 1 && (string?)http.Calls[0]["code"] == "ABC123" && (string?)http.Calls[0]["action"] == "open", "Open Lobby did not send the chosen code");
         Check((string?)http.Calls[0]["lobbyName"] == "Friday games" && http.Calls[0]["gamemode"] == null && http.Calls[0]["map"] == null, "Unset must omit gamemode and map");
         Check(!open.IsEnabled && close.IsEnabled && code.IsReadOnly && lobbyName.IsReadOnly, "Open lobby did not lock its details");
@@ -90,19 +94,24 @@ static class HostingDesktopChecks
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
         Check(http.Calls.Count == 1, "Repeated Open Lobby created another request");
         await (Task)Call(w, "SendHostingAnnouncement", "close")!;
+        Check(collectStats.IsChecked == true && collectStats.IsEnabled, "Closing a lobby must restore the checked default for the next lobby");
         Check((string?)http.Calls[1]["action"] == "close" && (string?)http.Calls[1]["code"] == "ABC123", "Close Lobby targeted the wrong action/code");
         Check(Control<TextBlock>(w, "HostingAnnouncementStatus").Text == "Lobby closed in Discord." && open.IsEnabled && !code.IsReadOnly, "Close confirmation or field unlock missing");
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
+        Check(typeof(MainWindow).GetField("statisticsCollection", Flags)!.GetValue(w) != null, "Checked Open Lobby did not arm a statistics session");
         Check((string?)http.Calls[0]["requestId"] != (string?)http.Calls[2]["requestId"], "Reopening reused an old open request identity");
         http.FailOnce = HttpStatusCode.NotFound;
         await (Task)Call(w, "SendHostingAnnouncement", "close")!;
         Check(open.IsEnabled && !code.IsReadOnly && Control<TextBlock>(w, "HostingAnnouncementStatus").Text.Contains("No recent announcement"), "Expired server receipt left lobby details permanently locked");
         Session(new string('a', 32), 'u'); Check(code.Text == "" && lobbyName.Text == "" && !code.IsReadOnly, "Reauthentication retained lobby details from an old session");
         Session(new string('b', 32)); Check(code.Text == "", "Account switch retained another host's code");
-        code.Text = "RETRY1"; http.RateLimitOnce = true;
+        code.Text = "RETRY1"; http.RateLimitOnce = true; collectStats.IsChecked = false;
         await (Task)Call(w, "SendHostingAnnouncement", "open")!; await Task.Delay(1200);
+        Check(!collectStats.IsEnabled, "An attempted open must retain its stats choice across retries");
+        collectStats.IsChecked = true; // Programmatic change must not alter the captured request choice.
         Check(http.Calls.Count(c => (string?)c["code"] == "RETRY1") == 1, "A failed lobby request retried without a button click");
         await (Task)Call(w, "SendHostingAnnouncement", "open")!;
+        Check(typeof(MainWindow).GetField("statisticsCollection", Flags)!.GetValue(w) == null, "Retry changed the original stats opt-out");
         var retries = http.Calls.Where(c => (string?)c["code"] == "RETRY1").ToArray();
         Check(retries.Length == 2 && (string?)retries[0]["requestId"] == (string?)retries[1]["requestId"], "Manual retry changed its request identity");
         await (Task)Call(w, "SendHostingAnnouncement", "close")!;

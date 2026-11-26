@@ -65,7 +65,7 @@ Local tracking lives under `%LOCALAPPDATA%\SGL\Profiles\<profile>\shared-library
 
 ## Service budget pauses
 
-The sharing service has account-wide monthly cost alerts at 50%, 80% and 100% of its configured budget (default $10). When AWS reports a breach of the full budget, the guard pauses the online API and S3 uploads/downloads. Local editing, local history, backups and portable package sharing continue to work. Only an authorized operator can restore the online service; it does not reopen automatically next month. See the [operator budget guide](../sharing/README.md#budget-alerts-and-automatic-cutoff).
+The sharing service has account-wide monthly cost alerts at 50%, 80% and 100% of its configured budget (default $30). When AWS reports a breach of the full budget, the guard pauses the online API and S3 uploads/downloads. Local editing, local history, backups and portable package sharing continue to work. Only an authorized operator can restore the online service; it does not reopen automatically next month. See the [operator budget guide](../sharing/README.md#budget-alerts-and-automatic-cutoff).
 
 Billing data can be delayed, and storage/monitoring costs continue while paused. These controls reduce further sharing activity; they do not guarantee an exact spending ceiling. Operators must confirm monitoring email delivery and complete the live cutoff checks before community rollout.
 
