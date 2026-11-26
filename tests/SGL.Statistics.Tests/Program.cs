@@ -138,7 +138,7 @@ try
     if (args.Length > 0)
         File.WriteAllText(args[0], new JsonArray(result.DeepClone()).ToJsonString());
 }
-finally { Directory.Delete(directory, true); }
+finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); Directory.Delete(directory, true); }
 
 sealed class StatsTransport : HttpMessageHandler
 {
