@@ -2,7 +2,7 @@
 
 Collect match observations in SGL, preserve them in AWS, and build a public dashboard with mode leaderboards, player totals and the latest ten matches per player or gamemode. Start with game logs. Add scoreboard or game-memory observations later without replacing match identities or redesigning player records.
 
-This records the agreed design. The initial implementation is locally tested but has not been deployed to AWS; current backend status and operator instructions live in [SplitStatsInfra](https://github.com/djcowchaser/SplitStatsInfra). One host submits each match. DynamoDB is the preferred baseline following the user's constraints: alias corrections are rare, public match lists contain only the latest ten per player or gamemode, and totals are calculated during indexing. The PostgreSQL comparison remains a cost/reference alternative, not a second backend to implement.
+This records the agreed design. The initial implementation is locally tested but has not been deployed to AWS; current backend status and operator instructions live in [SplitStatsInfra](https://github.com/SGLifers/SplitStatsInfra). One host submits each match. DynamoDB is the preferred baseline following the user's constraints: alias corrections are rare, public match lists contain only the latest ten per player or gamemode, and totals are calculated during indexing. The PostgreSQL comparison remains a cost/reference alternative, not a second backend to implement.
 
 ## Evidence and scope
 
@@ -14,13 +14,13 @@ The first release includes log collection, durable local delivery, cloud ingesti
 
 ## Repository ownership
 
-Keep collection in SGL, the public frontend in [SplitStatsWeb](https://github.com/SGLifers/SplitStatsWeb), and the statistics backend/infrastructure in [djcowchaser/SplitStatsInfra](https://github.com/djcowchaser/SplitStatsInfra), with transfer to SGLifers planned later. These components have independent release cycles: a leaderboard or API change should not require a Windows app release, and a collector change should not redeploy the website. SplitStatsWeb remains frontend-only, including its existing tournament presentation.
+Keep collection in SGL, the public frontend in [SplitStatsWeb](https://github.com/SGLifers/SplitStatsWeb), and the statistics backend/infrastructure in [SGLifers/SplitStatsInfra](https://github.com/SGLifers/SplitStatsInfra). These components have independent release cycles: a leaderboard or API change should not require a Windows app release, and a collector change should not redeploy the website. SplitStatsWeb remains frontend-only, including its existing tournament presentation.
 
 | Repository | Proposed responsibility |
 | --- | --- |
 | `SGLifers/SGL` | Windows log collection, local SQLite checkpoints/outbox, future scoreboard/memory collection, sign-in integration, upload client and Hosting/Settings status |
 | `SGLifers/SplitStatsWeb` | Public community/tournament UI, browser charts/tables, API client and frontend tests; preserves existing approved static tournament assets |
-| `djcowchaser/SplitStatsInfra` (later SGLifers) | Intake/read/admin APIs, DynamoDB indexer, identity/alias records, tournament import tooling, backend/hosting AWS infrastructure, service tests and authoritative versioned API contracts |
+| `SGLifers/SplitStatsInfra` | Intake/read/admin APIs, DynamoDB indexer, identity/alias records, tournament import tooling, backend/hosting AWS infrastructure, service tests and authoritative versioned API contracts |
 | `SGLifers/SGL-Discord-Bot` | Discord command registration and the thin command adapter to the statistics admin service, alongside existing announcements; exact integration requires review of that repository |
 
 SplitStatsInfra backend repository layout:
@@ -291,7 +291,7 @@ Proposed guild-only slash commands:
 | `/stats resolve match:... participant:... member:@user reason:...` | Repair one participant when a general name rule is insufficient |
 | `/stats job id:...` | Inspect a mapping/import/rebuild job and its affected history |
 
-The default historical-backfill behavior for alias additions is pending confirmation in [the backend implementation readiness notes](https://github.com/djcowchaser/SplitStatsInfra/blob/main/docs/implementation-readiness.md). Support explicit effective dates and report the affected history before queuing a repair. Bootstrap/import can explicitly choose the earliest retained date for historical coverage. Provide an operator-only reviewed CSV import for the initial bulk mapping, with a dry run showing collisions before submission. Prevent linking one Discord account to two active player records. Merges and splits need explicit audited correction jobs, not an alias-add shortcut.
+Alias additions backfill unambiguous matching history by default, as recorded in [the backend implementation readiness notes](https://github.com/SGLifers/SplitStatsInfra/blob/main/docs/implementation-readiness.md). Support explicit effective dates and report the affected history before queuing a repair. Bootstrap/import can explicitly choose the earliest retained date for historical coverage. Provide an operator-only reviewed CSV import for the initial bulk mapping, with a dry run showing collisions before submission. Prevent linking one Discord account to two active player records. Merges and splits need explicit audited correction jobs, not an alias-add shortcut.
 
 Verify Discord's Ed25519 signature against the exact raw body and timestamp, handle PING, reject stale/replayed interactions, enforce the configured guild and current stats-admin role/allowlist server-side, and deduplicate by interaction ID. Restrict command visibility as well, but do not rely on Discord UI visibility as authorization. Commands return an ephemeral deferred response within Discord's deadline, then an ephemeral result/job receipt. Long backfills use the durable job ID; do not rely on a long-lived interaction token. Use an HTTP interactions endpoint without an always-on Gateway connection. Extending SGL-Discord-Bot needs a separate review of that repository's current contracts.
 
